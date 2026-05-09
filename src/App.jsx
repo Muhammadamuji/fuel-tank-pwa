@@ -677,7 +677,8 @@ const stations = {
       [1707, 14750],
       [1753, 15000],
     ],
-  },,
+  },
+    },
   },
   totalVilankulo: {
     name: "TOTAL VILANKULO",
