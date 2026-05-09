@@ -507,7 +507,11 @@ const LOGIN_USERS = [
 
 const SESSION_KEY = "fuelTankLoggedInUser";
 
-const tanks = {
+const stations = {
+  petromocVilankulo: {
+    name: "PETROMOC VILANKULO",
+    location: "Vilankulo",
+    tanks: {
   tank1: {
     name: "Tank 1",
     product: "Diesel",
@@ -673,6 +677,8 @@ const tanks = {
       [1707, 14750],
       [1753, 15000],
     ],
+  },
+    },
   },
 };
 
@@ -848,6 +854,7 @@ export default function FuelTankPWAPrototype() {
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [selectedStationId, setSelectedStationId] = useState("petromocVilankulo");
   const [selectedTankId, setSelectedTankId] = useState("tank1");
   const [readingMm, setReadingMm] = useState("");
   const [operator, setOperator] = useState("");
@@ -855,7 +862,17 @@ export default function FuelTankPWAPrototype() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const [isInstalled, setIsInstalled] = useState(() => isStandaloneApp());
 
-  const tank = tanks[selectedTankId] || tanks.tank1;
+  const station = stations[selectedStationId] || stations.petromocVilankulo;
+  const stationTanks = station?.tanks || {};
+  const tank = stationTanks[selectedTankId] || Object.values(stationTanks)[0];
+
+  useEffect(() => {
+    const currentStationTanks = station?.tanks || {};
+    if (!currentStationTanks[selectedTankId]) {
+      const firstTankId = Object.keys(currentStationTanks)[0] || "";
+      setSelectedTankId(firstTankId);
+    }
+  }, [selectedStationId, selectedTankId, station]);
 
   const liters = useMemo(() => interpolateLiters(readingMm, tank?.points || []), [readingMm, tank]);
   const capacity = Number(tank?.capacity) || 0;
@@ -874,6 +891,7 @@ export default function FuelTankPWAPrototype() {
     const newReading = {
       id: makeId(),
       date: new Date().toLocaleString(),
+      station: station.name,
       tank: tank.name,
       product: tank.product,
       mm: readingNumber,
@@ -1042,9 +1060,37 @@ export default function FuelTankPWAPrototype() {
               </div>
 
               <div>
+                <FieldLabel>Station</FieldLabel>
+                <select
+                  value={selectedStationId}
+                  onChange={(event) => {
+                    const newStationId = event.target.value;
+                    const firstTankId = Object.keys(stations[newStationId]?.tanks || {})[0] || "";
+                    setSelectedStationId(newStationId);
+                    setSelectedTankId(firstTankId);
+                    setReadingMm("");
+                  }}
+                  className="field-input"
+                >
+                  {Object.entries(stations).map(([id, item]) => (
+                    <option key={id} value={id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <FieldLabel>Tank</FieldLabel>
-                <select value={selectedTankId} onChange={(event) => setSelectedTankId(event.target.value)} className="field-input">
-                  {Object.entries(tanks).map(([id, item]) => (
+                <select
+                  value={selectedTankId}
+                  onChange={(event) => {
+                    setSelectedTankId(event.target.value);
+                    setReadingMm("");
+                  }}
+                  className="field-input"
+                >
+                  {Object.entries(stationTanks).map(([id, item]) => (
                     <option key={id} value={id}>
                       {item.name} — {item.product}
                     </option>
@@ -1084,9 +1130,9 @@ export default function FuelTankPWAPrototype() {
             <div className="results-grid">
               <section className="results-info">
                 <div>
-                  <p className="selected-label">Selected tank</p>
-                  <h2 className="selected-title">{tank.name}</h2>
-                  <p className="selected-subtitle">{tank.product} • Capacity {formatNumber(capacity)} L</p>
+                  <p className="selected-label">Selected station</p>
+                  <h2 className="selected-title">{station.name}</h2>
+                  <p className="selected-subtitle">{tank.name} • {tank.product} • Capacity {formatNumber(capacity)} L</p>
                 </div>
 
                 <div className="metric-grid">
@@ -1142,6 +1188,7 @@ export default function FuelTankPWAPrototype() {
                 <thead>
                   <tr>
                     <th>Date</th>
+                    <th>Station</th>
                     <th>Tank</th>
                     <th>Product</th>
                     <th>MM</th>
@@ -1154,12 +1201,13 @@ export default function FuelTankPWAPrototype() {
                 <tbody>
                   {history.length === 0 ? (
                     <tr>
-                      <td style={{ padding: "22px 8px", color: "#64748b" }} colSpan={8}>No readings saved yet.</td>
+                      <td style={{ padding: "22px 8px", color: "#64748b" }} colSpan={9}>No readings saved yet.</td>
                     </tr>
                   ) : (
                     history.map((row) => (
                       <tr key={row.id}>
                         <td>{row.date}</td>
+                        <td>{row.station || "PETROMOC VILANKULO"}</td>
                         <td>{row.tank}</td>
                         <td>{row.product}</td>
                         <td>{row.mm}</td>
@@ -1182,8 +1230,8 @@ export default function FuelTankPWAPrototype() {
                   <div key={row.id} className="history-mobile-card">
                     <div className="history-mobile-top">
                       <div>
-                        <p className="history-mobile-title">{row.tank} — {row.product}</p>
-                        <p className="history-mobile-date">{row.date}</p>
+                        <p className="history-mobile-title">{row.station || "PETROMOC VILANKULO"}</p>
+                        <p className="history-mobile-date">{row.tank} — {row.product} • {row.date}</p>
                       </div>
                       <span className="history-pill">{row.operator}</span>
                     </div>
