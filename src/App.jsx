@@ -314,6 +314,70 @@ const styles = `
     font-size: 15px;
     font-weight: 900;
   }
+  .login-shell {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0f172a, #334155);
+    padding: 20px;
+    display: grid;
+    place-items: center;
+    font-family: Arial, sans-serif;
+    color: #0f172a;
+  }
+  .login-card {
+    width: 100%;
+    max-width: 420px;
+    background: #ffffff;
+    border-radius: 24px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+    padding: 24px;
+    display: grid;
+    gap: 18px;
+  }
+  .login-logo {
+    height: 58px;
+    width: 58px;
+    border-radius: 18px;
+    background: #0f172a;
+    color: #ffffff;
+    display: grid;
+    place-items: center;
+    font-size: 28px;
+  }
+  .login-title {
+    margin: 0;
+    font-size: 28px;
+    line-height: 1.1;
+  }
+  .login-subtitle {
+    margin: 8px 0 0;
+    color: #64748b;
+    line-height: 1.5;
+  }
+  .login-form {
+    display: grid;
+    gap: 14px;
+  }
+  .login-error {
+    margin: 0;
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+    border-radius: 14px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .logout-button {
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #0f172a;
+    border-radius: 999px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.07);
+  }
 
   @media (max-width: 760px) {
     .app-shell {
@@ -435,6 +499,13 @@ const styles = `
     }
   }
 `;
+
+const LOGIN_USERS = [
+  { username: "admin", password: "1234", role: "Administrator" },
+  { username: "staff", password: "0000", role: "Staff" },
+];
+
+const SESSION_KEY = "fuelTankLoggedInUser";
 
 const tanks = {
   tank1: {
@@ -685,6 +756,41 @@ function isStandaloneApp() {
   return Boolean(standaloneDisplay || iosStandalone);
 }
 
+function loadSavedUser() {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+
+  try {
+    const saved = window.localStorage.getItem(SESSION_KEY);
+    if (!saved) return null;
+
+    const parsed = JSON.parse(saved);
+    return parsed && parsed.username ? parsed : null;
+  } catch (error) {
+    console.error("Could not load saved user", error);
+    return null;
+  }
+}
+
+function saveUserSession(user) {
+  if (typeof window === "undefined" || !window.localStorage) return;
+
+  try {
+    window.localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+  } catch (error) {
+    console.error("Could not save user session", error);
+  }
+}
+
+function clearUserSession() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+
+  try {
+    window.localStorage.removeItem(SESSION_KEY);
+  } catch (error) {
+    console.error("Could not clear user session", error);
+  }
+}
+
 function runInterpolationTests() {
   const testPoints = [
     [1, 0],
@@ -713,6 +819,7 @@ function runInterpolationTests() {
 
   const storageTests = [
     { name: "loadSavedHistory returns array when storage is unavailable", actual: Array.isArray(loadSavedHistory()), expected: true },
+    { name: "loadSavedUser returns null or user object", actual: loadSavedUser() === null || typeof loadSavedUser() === "object", expected: true },
   ];
 
   storageTests.forEach((test) => {
@@ -737,6 +844,10 @@ function FieldLabel({ children }) {
 }
 
 export default function FuelTankPWAPrototype() {
+  const [loggedInUser, setLoggedInUser] = useState(() => loadSavedUser());
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [selectedTankId, setSelectedTankId] = useState("tank1");
   const [readingMm, setReadingMm] = useState("");
   const [operator, setOperator] = useState("");
@@ -815,6 +926,81 @@ export default function FuelTankPWAPrototype() {
 
   const clearHistory = () => setHistory([]);
 
+  const handleLogin = (event) => {
+    event.preventDefault();
+
+    const user = LOGIN_USERS.find(
+      (item) => item.username.toLowerCase() === loginUsername.trim().toLowerCase() && item.password === loginPassword
+    );
+
+    if (!user) {
+      setLoginError("Wrong username or password.");
+      return;
+    }
+
+    const safeUser = { username: user.username, role: user.role };
+    saveUserSession(safeUser);
+    setLoggedInUser(safeUser);
+    setLoginUsername("");
+    setLoginPassword("");
+    setLoginError("");
+  };
+
+  const handleLogout = () => {
+    clearUserSession();
+    setLoggedInUser(null);
+  };
+
+  if (!loggedInUser) {
+    return (
+      <div className="login-shell">
+        <style>{styles}</style>
+        <div className="login-card">
+          <div className="login-logo">⛽</div>
+          <div>
+            <h1 className="login-title">Fuel Tank Reading</h1>
+            <p className="login-subtitle">Login to access tank readings and saved history.</p>
+          </div>
+
+          <form className="login-form" onSubmit={handleLogin}>
+            <div>
+              <FieldLabel>Username</FieldLabel>
+              <input
+                className="field-input"
+                value={loginUsername}
+                onChange={(event) => setLoginUsername(event.target.value)}
+                placeholder="admin"
+                autoComplete="username"
+              />
+            </div>
+
+            <div>
+              <FieldLabel>Password</FieldLabel>
+              <input
+                className="field-input"
+                type="password"
+                value={loginPassword}
+                onChange={(event) => setLoginPassword(event.target.value)}
+                placeholder="Enter password"
+                autoComplete="current-password"
+              />
+            </div>
+
+            {loginError ? <p className="login-error">{loginError}</p> : null}
+
+            <button type="submit" className="primary-button">
+              🔐 Login
+            </button>
+          </form>
+
+          <p className="small-text" style={{ margin: 0 }}>
+            Temporary test logins: admin / 1234 or staff / 0000. Change these before real use.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <style>{styles}</style>
@@ -825,12 +1011,16 @@ export default function FuelTankPWAPrototype() {
             <p className="app-subtitle">Fast mobile readings for liters, ullage, and daily history.</p>
           </div>
           <div className="status-row">
+            <div className="status-pill">{loggedInUser.username} • {loggedInUser.role}</div>
             <div className="status-pill">{isInstalled ? "Installed app mode" : "PWA-ready"}</div>
             {installPrompt ? (
               <button type="button" onClick={installApp} className="install-button">
                 📲 Install App
               </button>
             ) : null}
+            <button type="button" onClick={handleLogout} className="logout-button">
+              Logout
+            </button>
           </div>
         </header>
 
