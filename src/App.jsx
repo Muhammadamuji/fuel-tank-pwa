@@ -202,7 +202,7 @@ function makeId() {
 function normalizeReadingRow(row) {
   return {
     id: row?.id || makeId(),
-    date: row?.date || row?.created_at || new Date().toLocaleString(),
+    date: row?.date || row?.created_at || new Date().toISOString(),
     station: row?.station || "",
     tank: row?.tank || "",
     product: row?.product || "",
@@ -340,7 +340,31 @@ function getMonthDateRange(monthValue) {
 function parseSavedDate(value) {
   if (!value) return null;
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  if (!Number.isNaN(parsed.getTime())) return parsed;
+  const text = String(value).trim();
+  const pattern = new RegExp("^([0-9]{1,2})/([0-9]{1,2})/([0-9]{4}),?\s+([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?\s*(AM|PM)?$", "i");
+  const match = text.match(pattern);
+  if (!match) return null;
+  const month = Number(match[1]) - 1;
+  const day = Number(match[2]);
+  const year = Number(match[3]);
+  let hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6] || 0);
+  const suffix = String(match[7] || "").toUpperCase();
+  if (suffix === "PM" && hour < 12) hour += 12;
+  if (suffix === "AM" && hour === 12) hour = 0;
+  const fallbackDate = new Date(year, month, day, hour, minute, second);
+  return Number.isNaN(fallbackDate.getTime()) ? null : fallbackDate;
+}
+
+function getRowTime(row) {
+  const parsed = parseSavedDate(row?.date);
+  return parsed ? parsed.getTime() : 0;
+}
+
+function sortReadingsNewestFirst(rows = []) {
+  return [...rows].sort((a, b) => getRowTime(b) - getRowTime(a));
 }
 
 function filterRowsByDateRange(rows = [], fromDate = "", toDate = "") {
@@ -411,6 +435,7 @@ function runSelfTests() {
   expect("csv parser quoted comma", parseSimpleCsvLine('A,"B,C",D').length === 3);
   expect("normalise row", normalizeReadingRow({ station: "A", tank: "T", mm: "5" }).mm === 5);
   expect("google payload rows", rowsFromGoogleSheetPayload([["id", "date", "station", "tank", "product", "mm", "liters", "percentage", "ullage", "operator"], ["1", "today", "S", "T", "Diesel", 1, 2, 3, 4, "O"]]).length === 1);
+  expect("latest sort", sortReadingsNewestFirst([{ date: "2026-12-05T18:47:04.000Z" }, { date: "2026-12-05T18:50:00.000Z" }])[0].date === "2026-12-05T18:50:00.000Z");
   return results;
 }
 
@@ -466,12 +491,15 @@ export default function FuelTankPWAPrototype() {
   const salesTotals = useMemo(() => stationSalesImportHistory.reduce((total, row) => { const litres = Number(row.liters) || 0; total.liters += litres; total.amount += Number(row.amount) || 0; if (getProductClass(row.product) === "diesel") total.diesel += litres; if (getProductClass(row.product) === "petrol") total.petrol += litres; return total; }, { liters: 0, amount: 0, diesel: 0, petrol: 0 }), [stationSalesImportHistory]);
   const latestReadingsByTank = useMemo(() => {
     const latest = {};
-    stationReadingHistory.forEach((row) => { if (!latest[row.tank]) latest[row.tank] = row; });
+    stationReadingHistory.forEach((row) => {
+      const current = latest[row.tank];
+      if (!current || getRowTime(row) > getRowTime(current)) latest[row.tank] = row;
+    });
     return latest;
   }, [stationReadingHistory]);
   const filteredReportTotals = useMemo(() => filteredUnloadingHistory.reduce((total, row) => { const delivered = Number(row.deliveredLiters) || 0; const invoice = Number(row.invoiceLiters) || 0; const variance = Number(row.variance) || 0; total.received += delivered; total.invoice += invoice; total.variance += variance; if (getProductClass(row.product) === "diesel") { total.dieselReceived += delivered; total.dieselVariance += variance; } if (getProductClass(row.product) === "petrol") { total.petrolReceived += delivered; total.petrolVariance += variance; } return total; }, { received: 0, invoice: 0, variance: 0, dieselReceived: 0, petrolReceived: 0, dieselVariance: 0, petrolVariance: 0 }), [filteredUnloadingHistory]);
 
-  const persistHistory = (rows) => { const cleanRows = rows.map(normalizeReadingRow); setHistory(cleanRows); safeLocalStorageSet(HISTORY_KEY, cleanRows); };
+  const persistHistory = (rows) => { const cleanRows = sortReadingsNewestFirst(rows.map(normalizeReadingRow)); setHistory(cleanRows); safeLocalStorageSet(HISTORY_KEY, cleanRows); };
   const persistUnloadingHistory = (rows) => { setUnloadingHistory(rows); safeLocalStorageSet(UNLOADING_HISTORY_KEY, rows); };
   const persistSalesHistory = (rows) => { setSalesImportHistory(rows); safeLocalStorageSet(SALES_IMPORT_HISTORY_KEY, rows); };
 
@@ -540,7 +568,7 @@ export default function FuelTankPWAPrototype() {
 
   const saveReading = async () => {
     if (savingReadings) return;
-    const now = new Date().toLocaleString();
+    const now = new Date().toISOString();
     const rowsToSave = Object.entries(stationTanks).map(([tankId, tankItem]) => {
       const mmText = dailyReadings[tankId];
       const mmValue = Number(mmText);
