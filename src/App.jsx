@@ -1,56 +1,53 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+
+const GOOGLE_SHEETS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbylMjygoZuQvGRl3Ji0SgAwKMvikXp2Rcp0t6hS2BaoDXMukPAQUspmHOiETUMgpgzS/exec";
 
 const styles = `
   * { box-sizing: border-box; }
   body { margin: 0; }
   .app-shell { min-height: 100vh; background: #f1f5f9; padding: 24px; font-family: Arial, sans-serif; color: #0f172a; }
-  .app-container { max-width: 1180px; margin: 0 auto; display: grid; gap: 24px; }
+  .app-container { max-width: 1180px; margin: 0 auto; display: grid; gap: 22px; }
   .app-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
   .app-title { margin: 0; font-size: 34px; line-height: 1.1; }
   .app-subtitle { margin: 8px 0 0; color: #475569; }
   .status-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .status-pill { background: #fff; border-radius: 999px; padding: 10px 14px; font-size: 13px; box-shadow: 0 4px 16px rgba(15,23,42,.07); }
+  .card { background: #fff; border-radius: 18px; box-shadow: 0 8px 24px rgba(15,23,42,.08); border: 1px solid #e2e8f0; }
+  .card-content { padding: 22px; }
   .page-nav { display: flex; gap: 10px; flex-wrap: wrap; }
   .page-tab { border: 1px solid #cbd5e1; background: #fff; color: #0f172a; border-radius: 999px; padding: 12px 16px; font-weight: 900; cursor: pointer; }
   .page-tab.active { background: #0f172a; color: #fff; border-color: #0f172a; }
   .primary-button,.secondary-button,.logout-button { border: 0; border-radius: 14px; padding: 12px 16px; font-weight: 800; cursor: pointer; min-height: 46px; }
   .primary-button { background: #0f172a; color: #fff; }
-  .primary-button:disabled { background: #94a3b8; cursor: not-allowed; }
+  .primary-button:disabled,.secondary-button:disabled { opacity: .55; cursor: not-allowed; }
   .secondary-button,.logout-button { border: 1px solid #cbd5e1; background: #fff; color: #0f172a; }
-  .card { background: #fff; border-radius: 18px; box-shadow: 0 8px 24px rgba(15,23,42,.08); border: 1px solid #e2e8f0; }
-  .card-content { padding: 22px; }
-  .notice-card { background: #ecfeff; border-color: #67e8f9; }
-  .notice-card .card-content { display: grid; gap: 8px; padding: 18px; }
-  .notice-card h2 { margin: 0; font-size: 18px; }
-  .notice-card p { margin: 0; color: #155e75; line-height: 1.5; }
-  .form-grid { display: grid; gap: 18px; }
+  .form-grid { display: grid; gap: 16px; }
   .section-title { display: flex; align-items: center; gap: 10px; }
   .section-title h2 { margin: 0; font-size: 22px; }
   .field-label { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 700; color: #334155; }
   .field-input { width: 100%; border: 1px solid #cbd5e1; border-radius: 12px; padding: 11px 12px; font-size: 16px; outline: none; background: #fff; min-height: 46px; }
   .small-text { font-size: 12px; color: #64748b; margin-top: 6px; }
   .error-text { color: #dc2626; font-weight: 700; }
+  .ok-text { color: #15803d; font-weight: 800; }
   .metric-grid,.report-metrics,.import-summary { display: grid; grid-template-columns: repeat(2,minmax(160px,1fr)); gap: 12px; }
   .report-metrics,.import-summary { grid-template-columns: repeat(4,minmax(120px,1fr)); }
   .metric-box { background: #f8fafc; border-radius: 16px; padding: 16px; border: 1px solid #e2e8f0; }
   .metric-label { margin: 0; font-size: 12px; color: #64748b; }
   .metric-value { margin: 8px 0 0; font-size: 25px; font-weight: 900; }
-  .tank-visual { position: relative; height: 290px; width: 160px; overflow: hidden; border-radius: 22px; border: 5px solid #334155; background: #fff; box-shadow: inset 0 2px 18px rgba(15,23,42,.15); }
-  .tank-fill { position: absolute; left: 0; right: 0; bottom: 0; transition: height 350ms ease,width 350ms ease; }
-  .tank-fill.level-empty { background: linear-gradient(to top,#991b1b,#ef4444); }
-  .tank-fill.level-low { background: linear-gradient(to top,#dc2626,#fb7185); }
-  .tank-fill.level-warning { background: linear-gradient(to top,#ea580c,#fb923c); }
-  .tank-fill.level-medium { background: linear-gradient(to top,#ca8a04,#facc15); }
-  .tank-fill.level-good { background: linear-gradient(to top,#65a30d,#a3e635); }
-  .tank-fill.level-full { background: linear-gradient(to top,#15803d,#4ade80); }
+  .metric-box.diesel,.product-badge.diesel { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+  .metric-box.petrol,.product-badge.petrol { background: #dcfce7; color: #166534; border-color: #4ade80; }
+  .tank-visual { position: relative; height: 70px; width: 100%; overflow: hidden; border-radius: 16px; border: 3px solid #334155; background: #fff; box-shadow: inset 0 2px 18px rgba(15,23,42,.15); }
+  .tank-fill { position: absolute; left: 0; top: 0; bottom: 0; transition: width 350ms ease; }
+  .tank-fill.level-empty { background: linear-gradient(to right,#991b1b,#ef4444); }
+  .tank-fill.level-low { background: linear-gradient(to right,#dc2626,#fb7185); }
+  .tank-fill.level-warning { background: linear-gradient(to right,#ea580c,#fb923c); }
+  .tank-fill.level-medium { background: linear-gradient(to right,#ca8a04,#facc15); }
+  .tank-fill.level-good { background: linear-gradient(to right,#65a30d,#a3e635); }
+  .tank-fill.level-full { background: linear-gradient(to right,#15803d,#4ade80); }
   .tank-center { position: absolute; inset: 0; display: grid; place-items: center; }
-  .tank-badge { background: rgba(255,255,255,.86); border-radius: 14px; padding: 10px 14px; text-align: center; box-shadow: 0 8px 20px rgba(15,23,42,.12); }
+  .tank-badge { background: rgba(255,255,255,.86); border-radius: 14px; padding: 7px 10px; text-align: center; box-shadow: 0 8px 20px rgba(15,23,42,.12); }
   .tank-status-badge { border-radius: 999px; padding: 7px 11px; font-size: 12px; font-weight: 900; color: #fff; background: var(--level-color,#0f172a); }
-  .history-level-cell { min-width: 160px; }
-  .history-level-bar { width: 140px; height: 14px; border-radius: 999px; overflow: hidden; background: #e2e8f0; border: 1px solid #cbd5e1; }
-  .history-level-fill { height: 100%; width: var(--history-level-width,0%); background: var(--level-color,#0f172a); border-radius: 999px; }
-  .history-level-text { display: flex; gap: 8px; align-items: center; margin-top: 5px; font-size: 12px; font-weight: 900; color: var(--level-color,#0f172a); }
-  .history-header { margin-bottom: 16px; display: flex; justify-content: space-between; gap: 14px; align-items: center; }
+  .history-header { margin-bottom: 16px; display: flex; justify-content: space-between; gap: 14px; align-items: center; flex-wrap: wrap; }
   .history-header h2 { margin: 0; font-size: 22px; }
   .history-header p { margin: 6px 0 0; font-size: 13px; color: #64748b; }
   .history-table-wrap { overflow-x: auto; }
@@ -58,12 +55,19 @@ const styles = `
   .history-table th,.history-table td { text-align: left; padding: 12px 8px; }
   .history-table thead tr,.history-table tbody tr { border-bottom: 1px solid #e2e8f0; }
   .history-table thead { color: #64748b; }
+  .history-row-diesel { background: #fef9c3; }
+  .history-row-petrol { background: #dcfce7; }
+  .history-level-cell { min-width: 160px; }
+  .history-level-bar { width: 140px; height: 14px; border-radius: 999px; overflow: hidden; background: #e2e8f0; border: 1px solid #cbd5e1; }
+  .history-level-fill { height: 100%; width: var(--history-level-width,0%); background: var(--level-color,#0f172a); border-radius: 999px; }
+  .history-level-text { display: flex; gap: 8px; align-items: center; margin-top: 5px; font-size: 12px; font-weight: 900; color: var(--level-color,#0f172a); }
   .unloading-grid { display: grid; grid-template-columns: repeat(3,minmax(160px,1fr)); gap: 12px; }
   .unloading-actions,.filter-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-  .edit-banner { background: #eff6ff; border: 1px solid #93c5fd; color: #1e3a8a; border-radius: 14px; padding: 12px 14px; font-size: 13px; font-weight: 800; }
-  .filter-panel,.import-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; display: grid; gap: 14px; }
-  .import-box { border: 2px dashed #94a3b8; border-radius: 18px; padding: 18px; }
-  .warning-box { background: #fff7ed; border: 1px solid #fb923c; color: #9a3412; border-radius: 14px; padding: 12px 14px; font-size: 13px; font-weight: 800; }
+  .edit-banner,.warning-box { background: #fff7ed; border: 1px solid #fb923c; color: #9a3412; border-radius: 14px; padding: 12px 14px; font-size: 13px; font-weight: 800; }
+  .edit-banner { background: #eff6ff; border-color: #93c5fd; color: #1e3a8a; }
+  .filter-panel,.import-box,.diagnostic-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; display: grid; gap: 14px; }
+  .import-box { border: 2px dashed #94a3b8; }
+  .diagnostic-box { background: #f8fafc; border-color: #cbd5e1; font-size: 13px; color: #334155; }
   .report-list { display: grid; gap: 14px; }
   .report-card { border: 1px solid #e2e8f0; border-radius: 16px; background: #f8fafc; padding: 16px; display: grid; gap: 12px; }
   .report-top { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
@@ -72,13 +76,9 @@ const styles = `
   .report-pill { border-radius: 999px; background: #e2e8f0; padding: 7px 11px; font-size: 12px; font-weight: 900; }
   .report-lines { display: grid; gap: 8px; }
   .report-line { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; font-size: 13px; line-height: 1.45; }
-  .report-line.diesel,.history-row-diesel { background: #fef9c3; }
-  .report-line.petrol,.history-row-petrol { background: #dcfce7; }
-  .report-line.diesel { border-color: #facc15; }
-  .report-line.petrol { border-color: #4ade80; }
+  .report-line.diesel { background: #fef9c3; border-color: #facc15; }
+  .report-line.petrol { background: #dcfce7; border-color: #4ade80; }
   .product-badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 900; border: 1px solid transparent; }
-  .product-badge.diesel,.metric-box.diesel { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
-  .product-badge.petrol,.metric-box.petrol { background: #dcfce7; color: #166534; border-color: #4ade80; }
   .metric-box.diesel-diff { background: #fff7ed; border-color: #fb923c; }
   .metric-box.petrol-diff { background: #ecfdf5; border-color: #22c55e; }
   .variance-positive { color: #15803d; }
@@ -114,9 +114,7 @@ const styles = `
     .metric-grid, .report-metrics, .import-summary { grid-template-columns: 1fr; gap: 10px; }
     .metric-box { padding: 13px; border-radius: 15px; }
     .metric-value { font-size: 20px; }
-    .tank-visual { width: 100%; height: 76px; border-radius: 18px; border-width: 4px; }
-    .tank-fill { top: 0; right: auto; height: 100% !important; width: var(--tank-width,0%); }
-    .tank-badge { padding: 7px 10px; }
+    .tank-visual { height: 76px; border-radius: 18px; border-width: 4px; }
     .history-header { display: grid; gap: 12px; }
     .history-table-wrap { overflow: visible; width: 100%; }
     .history-table { width: 100%; min-width: 0; border-collapse: separate; border-spacing: 0 10px; font-size: 14px; }
@@ -148,7 +146,6 @@ const SESSION_KEY = "fuelTankLoggedInUser";
 const HISTORY_KEY = "fuelTankReadingHistory";
 const UNLOADING_HISTORY_KEY = "fuelTankUnloadingHistory";
 const SALES_IMPORT_HISTORY_KEY = "fuelTankSalesImportHistory";
-const GOOGLE_SHEETS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbylMjygoZuQvGRl3Ji0SgAwKMvikXp2Rcp0t6hS2BaoDXMukPAQUspmHOiETUMgpgzS/exec";
 
 function interpolateLiters(mm, points = []) {
   const value = Number(mm);
@@ -200,6 +197,27 @@ const stations = {
 function makeId() {
   if (typeof globalThis !== "undefined" && globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function normalizeReadingRow(row) {
+  return {
+    id: row?.id || makeId(),
+    date: row?.date || row?.created_at || new Date().toLocaleString(),
+    station: row?.station || "",
+    tank: row?.tank || "",
+    product: row?.product || "",
+    mm: Number(row?.mm) || 0,
+    liters: Number(row?.liters) || 0,
+    percentage: Number(row?.percentage) || 0,
+    ullage: Number(row?.ullage) || 0,
+    operator: row?.operator || "Not entered",
+  };
+}
+
+function rowsFromGoogleSheetPayload(payload) {
+  if (!Array.isArray(payload) || payload.length === 0) return [];
+  if (typeof payload[0] === "object" && !Array.isArray(payload[0])) return payload.map(normalizeReadingRow).filter((row) => row.station && row.tank);
+  return payload.slice(1).map((row) => normalizeReadingRow({ id: row?.[0], date: row?.[1], station: row?.[2], tank: row?.[3], product: row?.[4], mm: row?.[5], liters: row?.[6], percentage: row?.[7], ullage: row?.[8], operator: row?.[9] })).filter((row) => row.station && row.tank);
 }
 
 function createTruckDeliveryId(reference, truckPlate, driverName) {
@@ -385,19 +403,15 @@ function isStandaloneApp() {
   return Boolean(window.matchMedia?.("(display-mode: standalone)").matches || window.navigator?.standalone === true);
 }
 
-function normalizeReadingRow(row) {
-  return {
-    id: row.id || makeId(),
-    date: row.date || row.created_at || new Date().toLocaleString(),
-    station: row.station || "",
-    tank: row.tank || "",
-    product: row.product || "",
-    mm: Number(row.mm) || 0,
-    liters: Number(row.liters) || 0,
-    percentage: Number(row.percentage) || 0,
-    ullage: Number(row.ullage) || 0,
-    operator: row.operator || "Not entered",
-  };
+function runSelfTests() {
+  const results = [];
+  const expect = (name, condition) => results.push({ name, passed: Boolean(condition) });
+  expect("interpolate exact", interpolateLiters(496, totalTank1Anchors) === 3898);
+  expect("interpolate empty", interpolateLiters("", totalTank1Anchors) === 0);
+  expect("csv parser quoted comma", parseSimpleCsvLine('A,"B,C",D').length === 3);
+  expect("normalise row", normalizeReadingRow({ station: "A", tank: "T", mm: "5" }).mm === 5);
+  expect("google payload rows", rowsFromGoogleSheetPayload([["id", "date", "station", "tank", "product", "mm", "liters", "percentage", "ullage", "operator"], ["1", "today", "S", "T", "Diesel", 1, 2, 3, 4, "O"]]).length === 1);
+  return results;
 }
 
 function Card({ children, style, className = "" }) { return <div className={`card ${className}`} style={style}>{children}</div>; }
@@ -435,6 +449,9 @@ export default function FuelTankPWAPrototype() {
   const [isInstalled] = useState(() => isStandaloneApp());
   const [syncStatus, setSyncStatus] = useState("Local + Google Sheets");
   const [savingReadings, setSavingReadings] = useState(false);
+  const [loadingReadings, setLoadingReadings] = useState(false);
+  const [lastSyncError, setLastSyncError] = useState("");
+  const [testResults] = useState(() => runSelfTests());
   const unloadingSectionRef = useRef(null);
 
   const station = stations[selectedStationId] || stations.petromocVilankulo;
@@ -454,10 +471,65 @@ export default function FuelTankPWAPrototype() {
   }, [stationReadingHistory]);
   const filteredReportTotals = useMemo(() => filteredUnloadingHistory.reduce((total, row) => { const delivered = Number(row.deliveredLiters) || 0; const invoice = Number(row.invoiceLiters) || 0; const variance = Number(row.variance) || 0; total.received += delivered; total.invoice += invoice; total.variance += variance; if (getProductClass(row.product) === "diesel") { total.dieselReceived += delivered; total.dieselVariance += variance; } if (getProductClass(row.product) === "petrol") { total.petrolReceived += delivered; total.petrolVariance += variance; } return total; }, { received: 0, invoice: 0, variance: 0, dieselReceived: 0, petrolReceived: 0, dieselVariance: 0, petrolVariance: 0 }), [filteredUnloadingHistory]);
 
-
   const persistHistory = (rows) => { const cleanRows = rows.map(normalizeReadingRow); setHistory(cleanRows); safeLocalStorageSet(HISTORY_KEY, cleanRows); };
   const persistUnloadingHistory = (rows) => { setUnloadingHistory(rows); safeLocalStorageSet(UNLOADING_HISTORY_KEY, rows); };
   const persistSalesHistory = (rows) => { setSalesImportHistory(rows); safeLocalStorageSet(SALES_IMPORT_HISTORY_KEY, rows); };
+
+  const loadReadingsFromGoogleSheets = async () => {
+    if (loadingReadings) return;
+    setLoadingReadings(true);
+    setLastSyncError("");
+    setSyncStatus("Loading Google Sheets");
+    const callbackName = `fuelTankReadingsCallback_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+    try {
+      const payload = await new Promise((resolve, reject) => {
+        if (typeof document === "undefined") {
+          reject(new Error("Document is not available"));
+          return;
+        }
+
+        const script = document.createElement("script");
+        const cleanup = () => {
+          if (window[callbackName]) delete window[callbackName];
+          if (script.parentNode) script.parentNode.removeChild(script);
+        };
+
+        const timeout = window.setTimeout(() => {
+          cleanup();
+          reject(new Error("Google Sheets did not respond. Check Apps Script doGet deployment and access set to Anyone."));
+        }, 15000);
+
+        window[callbackName] = (data) => {
+          window.clearTimeout(timeout);
+          cleanup();
+          resolve(data);
+        };
+
+        script.onerror = () => {
+          window.clearTimeout(timeout);
+          cleanup();
+          reject(new Error("Google Sheets script could not load. Check the Web App URL and deployment access."));
+        };
+
+        script.src = `${GOOGLE_SHEETS_WEB_APP_URL}?callback=${encodeURIComponent(callbackName)}&ts=${Date.now()}`;
+        document.body.appendChild(script);
+      });
+
+      const rows = rowsFromGoogleSheetPayload(payload);
+      persistHistory(rows);
+      setSyncStatus(rows.length > 0 ? "Loaded from Google Sheets" : "Google Sheets loaded, no readings");
+    } catch (error) {
+      setLastSyncError(error?.message || "Could not load Google Sheets readings");
+      setSyncStatus("Local mode");
+    } finally {
+      setLoadingReadings(false);
+    }
+  };
+
+  useEffect(() => {
+    if (loggedInUser) loadReadingsFromGoogleSheets();
+  }, [loggedInUser]);
 
   const selectStation = (stationId, clearReading = true) => {
     setSelectedStationId(stationId);
@@ -482,6 +554,7 @@ export default function FuelTankPWAPrototype() {
 
     if (rowsToSave.length === 0) return;
     setSavingReadings(true);
+    setLastSyncError("");
 
     try {
       await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
@@ -490,16 +563,15 @@ export default function FuelTankPWAPrototype() {
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(rowsToSave),
       });
-      setSyncStatus("Saved to Google Sheets");
+      setSyncStatus("Sent to Google Sheets");
     } catch (error) {
-      console.error("Google Sheets save error:", error);
+      setLastSyncError(error?.message || "Could not send to Google Sheets");
       setSyncStatus("Saved locally only");
-      alert("Could not save to Google Sheets. Saved only on this device.");
+    } finally {
+      persistHistory([...rowsToSave, ...history]);
+      setDailyReadings({});
+      setSavingReadings(false);
     }
-
-    persistHistory([...rowsToSave, ...history]);
-    setDailyReadings({});
-    setSavingReadings(false);
   };
 
   const clearCurrentStationReadings = () => {
@@ -560,8 +632,7 @@ export default function FuelTankPWAPrototype() {
       const rows = parsed.rows.map((row) => ({ ...row, stationId: selectedStationId, station: station.name, importId, importedAt, fileName: file.name }));
       persistSalesHistory([...rows, ...salesImportHistory]);
       setSalesImportStatus(`Imported ${rows.length} sales rows from ${file.name}. Skipped ${parsed.skippedRows.length} rows.`);
-    } catch (error) {
-      console.error(error);
+    } catch {
       setSalesImportStatus("Could not import this CSV file. Try exporting again from NetPOS as CSV.");
     } finally { event.target.value = ""; }
   };
@@ -579,6 +650,7 @@ export default function FuelTankPWAPrototype() {
   };
 
   const handleLogout = () => { if (typeof window !== "undefined" && window.localStorage) window.localStorage.removeItem(SESSION_KEY); setLoggedInUser(null); };
+  const testsPassed = testResults.every((item) => item.passed);
 
   if (!loggedInUser) {
     return <div className="login-shell"><style>{styles}</style><div className="login-card"><div className="login-logo">⛽</div><div><h1 className="login-title">Fuel Tank Reading</h1><p className="login-subtitle">Login to access tank readings and saved history.</p></div><form className="login-form" onSubmit={handleLogin}><div><FieldLabel>Username</FieldLabel><input className="field-input" value={loginUsername} onChange={(event) => setLoginUsername(event.target.value)} placeholder="admin" autoComplete="username" /></div><div><FieldLabel>Password</FieldLabel><input className="field-input" type="password" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} placeholder="Enter password" autoComplete="current-password" /></div>{loginError ? <p className="login-error">{loginError}</p> : null}<button type="submit" className="primary-button">🔐 Login</button></form><p className="small-text" style={{ margin: 0 }}>Temporary test logins: admin / 1234 or staff / 0000. Change these before real use.</p></div></div>;
@@ -586,13 +658,12 @@ export default function FuelTankPWAPrototype() {
 
   return <div className="app-shell"><style>{styles}</style><div className="app-container">
     <header className="app-header"><div><h1 className="app-title">Fuel Tank Reading</h1><p className="app-subtitle">Fast mobile readings for liters, ullage, truck unloading, and delivery reports.</p></div><div className="status-row"><div className="status-pill">{loggedInUser.username} • {loggedInUser.role}</div><div className="status-pill">{isInstalled ? "Installed app mode" : "PWA-ready"}</div><div className="status-pill">{syncStatus}</div><button type="button" onClick={handleLogout} className="logout-button">Logout</button></div></header>
-    <Card className="notice-card"><div className="card-content"><h2>Install on phone or computer</h2><p>On Android/Chrome or Windows/Edge, use the browser install button. On iPhone, open in Safari, tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>.</p></div></Card>
-    <Card><div className="card-content form-grid"><div className="section-title"><span style={{ fontSize: 24 }}>🏪</span><h2>Current Station</h2></div><select value={selectedStationId} onChange={(event) => selectStation(event.target.value, true)} className="field-input">{Object.entries(stations).map(([id, item]) => <option key={id} value={id}>{item.name}</option>)}</select><p className="small-text" style={{ margin: 0 }}>Everything below now belongs only to <strong>{station.name}</strong>: readings, unloading, reports and sales imports.</p></div></Card>
+    <Card><div className="card-content form-grid"><div className="section-title"><span style={{ fontSize: 24 }}>🏪</span><h2>Current Station</h2></div><select value={selectedStationId} onChange={(event) => selectStation(event.target.value, true)} className="field-input">{Object.entries(stations).map(([id, item]) => <option key={id} value={id}>{item.name}</option>)}</select><p className="small-text" style={{ margin: 0 }}>Everything below belongs only to <strong>{station.name}</strong>: readings, unloading, reports and sales imports.</p></div></Card>
     <nav className="page-nav" aria-label="App pages"><button type="button" className={`page-tab ${activePage === "dashboard" ? "active" : ""}`} onClick={() => setActivePage("dashboard")}>📍 Dashboard</button><button type="button" className={`page-tab ${activePage === "daily" ? "active" : ""}`} onClick={() => setActivePage("daily")}>⛽ Daily Readings</button><button type="button" className={`page-tab ${activePage === "delivery" ? "active" : ""}`} onClick={() => setActivePage("delivery")}>🚚 Truck Delivery</button><button type="button" className={`page-tab ${activePage === "reports" ? "active" : ""}`} onClick={() => setActivePage("reports")}>📊 Reports</button><button type="button" className={`page-tab ${activePage === "sales" ? "active" : ""}`} onClick={() => setActivePage("sales")}>📥 Sales Import</button></nav>
 
-    {activePage === "dashboard" ? <Card><div className="card-content form-grid"><div className="section-title"><span style={{ fontSize: 24 }}>📍</span><h2>Tank Overview</h2></div><p className="small-text" style={{ margin: 0 }}>Latest saved readings for <strong>{station.name}</strong>. This gives you a quick station stock view before entering new readings.</p><div className="report-metrics">{Object.entries(stationTanks).map(([tankId, tankItem]) => { const latest = latestReadingsByTank[tankItem.name]; const tankLiters = Number(latest?.liters) || 0; const tankCapacity = Number(tankItem.capacity) || 0; const tankPercentage = latest ? (Number(latest.percentage) || 0) : 0; const tankUllage = latest ? Math.max(tankCapacity - tankLiters, 0) : tankCapacity; const levelInfo = getTankLevelInfo(tankPercentage); return <div key={tankId} className={`metric-box ${getProductClass(tankItem.product)}`} style={{ display: "grid", gap: 12 }}><div><p className="metric-label">{tankItem.name}</p><p className="metric-value" style={{ fontSize: 22 }}>{tankItem.product}</p><p className="small-text" style={{ marginBottom: 0 }}>Last: {latest?.date || "No reading yet"}</p></div><div className="tank-visual" style={{ width: "100%", height: 70, borderRadius: 16, borderWidth: 3, "--tank-width": `${tankPercentage}%` }}><div className={`tank-fill ${levelInfo.className}`} style={{ height: "100%", width: `${tankPercentage}%`, right: "auto" }} /><div className="tank-center"><div className="tank-badge" style={{ padding: "6px 10px" }}><strong>{formatNumber(tankPercentage)}%</strong></div></div></div><div className="metric-grid" style={{ gridTemplateColumns: "1fr 1fr" }}><div><p className="metric-label">Liters</p><p className="metric-value" style={{ fontSize: 18 }}>{formatNumber(tankLiters)} L</p></div><div><p className="metric-label">Space</p><p className="metric-value" style={{ fontSize: 18 }}>{formatNumber(tankUllage)} L</p></div></div><span className="tank-status-badge" style={{ "--level-color": levelInfo.color, justifySelf: "start" }}>{latest ? levelInfo.label : "No reading"}</span></div>; })}</div><div className="unloading-actions"><button type="button" className="primary-button" onClick={() => setActivePage("daily")}>Enter Daily Readings</button><button type="button" className="secondary-button" onClick={() => setActivePage("delivery")}>Truck Delivery</button></div></div></Card> : null}
+    {activePage === "dashboard" ? <Card><div className="card-content form-grid"><div className="section-title"><span style={{ fontSize: 24 }}>📍</span><h2>Tank Overview</h2></div><p className="small-text" style={{ margin: 0 }}>Latest saved readings for <strong>{station.name}</strong>.</p><div className="report-metrics">{Object.entries(stationTanks).map(([tankId, tankItem]) => { const latest = latestReadingsByTank[tankItem.name]; const tankLiters = Number(latest?.liters) || 0; const tankCapacity = Number(tankItem.capacity) || 0; const tankPercentage = latest ? (Number(latest.percentage) || 0) : 0; const tankUllage = latest ? Math.max(tankCapacity - tankLiters, 0) : tankCapacity; const levelInfo = getTankLevelInfo(tankPercentage); return <div key={tankId} className={`metric-box ${getProductClass(tankItem.product)}`} style={{ display: "grid", gap: 12 }}><div><p className="metric-label">{tankItem.name}</p><p className="metric-value" style={{ fontSize: 22 }}>{tankItem.product}</p><p className="small-text" style={{ marginBottom: 0 }}>Last: {latest?.date || "No reading yet"}</p></div><div className="tank-visual"><div className={`tank-fill ${levelInfo.className}`} style={{ width: `${tankPercentage}%` }} /><div className="tank-center"><div className="tank-badge"><strong>{formatNumber(tankPercentage)}%</strong></div></div></div><div className="metric-grid" style={{ gridTemplateColumns: "1fr 1fr" }}><div><p className="metric-label">Liters</p><p className="metric-value" style={{ fontSize: 18 }}>{formatNumber(tankLiters)} L</p></div><div><p className="metric-label">Space</p><p className="metric-value" style={{ fontSize: 18 }}>{formatNumber(tankUllage)} L</p></div></div><span className="tank-status-badge" style={{ "--level-color": levelInfo.color, justifySelf: "start" }}>{latest ? levelInfo.label : "No reading"}</span></div>; })}</div><div className="unloading-actions"><button type="button" className="primary-button" onClick={() => setActivePage("daily")}>Enter Daily Readings</button><button type="button" className="secondary-button" onClick={loadReadingsFromGoogleSheets} disabled={loadingReadings}>{loadingReadings ? "Refreshing..." : "Refresh From Google Sheets"}</button></div>{lastSyncError ? <div className="diagnostic-box"><strong>Google Sheets load problem:</strong><br />{lastSyncError}<br /><span className="small-text">Make sure Apps Script has doGet with JSONP support and deployment access is Anyone.</span></div> : null}<div className="diagnostic-box"><strong>Self tests:</strong> <span className={testsPassed ? "ok-text" : "error-text"}>{testsPassed ? "Passed" : "Failed"}</span></div></div></Card> : null}
 
-    {activePage === "daily" ? <><Card><div className="card-content form-grid"><div className="section-title"><span style={{ fontSize: 24 }}>⛽</span><h2>Daily Readings</h2></div><p className="small-text" style={{ margin: 0 }}>Enter all tank readings for <strong>{station.name}</strong> at once. Leave a tank empty if you do not want to save it now.</p><div><FieldLabel>Operator / staff name</FieldLabel><input className="field-input" placeholder="Optional" value={operator} onChange={(event) => setOperator(event.target.value)} /></div><div className="history-table-wrap"><table className="history-table"><thead><tr><th>Tank</th><th>Product</th><th>Reading MM</th><th>Liters</th><th>Available Space</th><th>Full</th><th>Level</th></tr></thead><tbody>{Object.entries(stationTanks).map(([tankId, tankItem]) => { const mmText = dailyReadings[tankId] || ""; const mmValue = Number(mmText); const hasValue = mmText !== "" && Number.isFinite(mmValue); const isInvalid = hasValue && (mmValue < 0 || (Number(tankItem.maxMm) > 0 && mmValue > Number(tankItem.maxMm))); const tankLiters = hasValue && !isInvalid ? interpolateLiters(mmValue, tankItem.points || []) : 0; const tankCapacity = Number(tankItem.capacity) || 0; const tankPercentage = tankCapacity > 0 ? Math.min((tankLiters / tankCapacity) * 100, 100) : 0; const tankUllage = Math.max(tankCapacity - tankLiters, 0); return <tr key={tankId} className={`history-row-${getProductClass(tankItem.product)}`}><td><strong>{tankItem.name}</strong><div className="small-text" style={{ marginTop: 4 }}>Max {tankItem.maxMm} mm</div></td><td><ProductBadge product={tankItem.product} /></td><td><input className="field-input" type="number" inputMode="decimal" min="0" max={tankItem.maxMm} value={mmText} onChange={(event) => updateDailyReading(tankId, event.target.value)} placeholder="MM" style={{ minWidth: 120 }} />{isInvalid ? <div className="small-text error-text">Invalid reading</div> : null}</td><td><strong>{formatNumber(tankLiters)} L</strong></td><td>{formatNumber(tankUllage)} L</td><td>{formatNumber(tankPercentage)}%</td><td><HistoryLevelVisual percentage={tankPercentage} /></td></tr>; })}</tbody></table></div><div className="unloading-actions"><button type="button" onClick={saveReading} disabled={savingReadings} className="primary-button">{savingReadings ? "Saving..." : "💾 Save All Entered Readings"}</button><button type="button" onClick={() => setDailyReadings({})} className="secondary-button">Clear Inputs</button></div></div></Card><Card><div className="card-content"><div className="history-header"><div><h2>Reading History</h2><p>Saved tank readings for {station.name}.</p></div><button type="button" onClick={clearCurrentStationReadings} className="secondary-button">🗑️ Clear This Station</button></div><div className="history-table-wrap"><table className="history-table"><thead><tr><th>Date</th><th>Station</th><th>Tank</th><th>Product</th><th>MM</th><th>Liters</th><th>Level</th><th>Ullage</th><th>Operator</th></tr></thead><tbody>{stationReadingHistory.length === 0 ? <tr><td style={{ padding: "22px 8px", color: "#64748b" }} colSpan={9}>No readings saved yet for this station.</td></tr> : stationReadingHistory.map((row) => <tr key={row.id} className={`history-row-${getProductClass(row.product)}`}><td>{row.date}</td><td>{row.station}</td><td>{row.tank}</td><td><ProductBadge product={row.product} /></td><td>{row.mm}</td><td>{formatNumber(row.liters)} L</td><td><HistoryLevelVisual percentage={row.percentage} /></td><td>{formatNumber(row.ullage)} L</td><td>{row.operator}</td></tr>)}</tbody></table></div></div></Card></> : null}
+    {activePage === "daily" ? <><Card><div className="card-content form-grid"><div className="section-title"><span style={{ fontSize: 24 }}>⛽</span><h2>Daily Readings</h2></div><p className="small-text" style={{ margin: 0 }}>Enter all tank readings for <strong>{station.name}</strong> at once. Leave a tank empty if you do not want to save it now.</p><div><FieldLabel>Operator / staff name</FieldLabel><input className="field-input" placeholder="Optional" value={operator} onChange={(event) => setOperator(event.target.value)} /></div><div className="history-table-wrap"><table className="history-table"><thead><tr><th>Tank</th><th>Product</th><th>Reading MM</th><th>Liters</th><th>Available Space</th><th>Full</th><th>Level</th></tr></thead><tbody>{Object.entries(stationTanks).map(([tankId, tankItem]) => { const mmText = dailyReadings[tankId] || ""; const mmValue = Number(mmText); const hasValue = mmText !== "" && Number.isFinite(mmValue); const isInvalid = hasValue && (mmValue < 0 || (Number(tankItem.maxMm) > 0 && mmValue > Number(tankItem.maxMm))); const tankLiters = hasValue && !isInvalid ? interpolateLiters(mmValue, tankItem.points || []) : 0; const tankCapacity = Number(tankItem.capacity) || 0; const tankPercentage = tankCapacity > 0 ? Math.min((tankLiters / tankCapacity) * 100, 100) : 0; const tankUllage = Math.max(tankCapacity - tankLiters, 0); return <tr key={tankId} className={`history-row-${getProductClass(tankItem.product)}`}><td><strong>{tankItem.name}</strong><div className="small-text" style={{ marginTop: 4 }}>Max {tankItem.maxMm} mm</div></td><td><ProductBadge product={tankItem.product} /></td><td><input className="field-input" type="number" inputMode="decimal" min="0" max={tankItem.maxMm} value={mmText} onChange={(event) => updateDailyReading(tankId, event.target.value)} placeholder="MM" style={{ minWidth: 120 }} />{isInvalid ? <div className="small-text error-text">Invalid reading</div> : null}</td><td><strong>{formatNumber(tankLiters)} L</strong></td><td>{formatNumber(tankUllage)} L</td><td>{formatNumber(tankPercentage)}%</td><td><HistoryLevelVisual percentage={tankPercentage} /></td></tr>; })}</tbody></table></div><div className="unloading-actions"><button type="button" onClick={saveReading} disabled={savingReadings} className="primary-button">{savingReadings ? "Saving..." : "💾 Save All Entered Readings"}</button><button type="button" onClick={() => setDailyReadings({})} className="secondary-button">Clear Inputs</button></div></div></Card><Card><div className="card-content"><div className="history-header"><div><h2>Reading History</h2><p>Saved tank readings for {station.name}.</p></div><div className="unloading-actions"><button type="button" onClick={loadReadingsFromGoogleSheets} disabled={loadingReadings} className="secondary-button">{loadingReadings ? "Refreshing..." : "🔄 Refresh From Google Sheets"}</button><button type="button" onClick={clearCurrentStationReadings} className="secondary-button">🗑️ Clear This Station</button></div></div>{lastSyncError ? <div className="diagnostic-box" style={{ marginBottom: 12 }}>{lastSyncError}</div> : null}<div className="history-table-wrap"><table className="history-table"><thead><tr><th>Date</th><th>Station</th><th>Tank</th><th>Product</th><th>MM</th><th>Liters</th><th>Level</th><th>Ullage</th><th>Operator</th></tr></thead><tbody>{stationReadingHistory.length === 0 ? <tr><td style={{ padding: "22px 8px", color: "#64748b" }} colSpan={9}>No readings saved yet for this station.</td></tr> : stationReadingHistory.map((row) => <tr key={row.id} className={`history-row-${getProductClass(row.product)}`}><td>{row.date}</td><td>{row.station}</td><td>{row.tank}</td><td><ProductBadge product={row.product} /></td><td>{row.mm}</td><td>{formatNumber(row.liters)} L</td><td><HistoryLevelVisual percentage={row.percentage} /></td><td>{formatNumber(row.ullage)} L</td><td>{row.operator}</td></tr>)}</tbody></table></div></div></Card></> : null}
 
     {activePage === "delivery" ? <><Card><div ref={unloadingSectionRef} className="card-content form-grid" style={{ scrollMarginTop: 24 }}><div className="section-title"><span style={{ fontSize: 24 }}>🚚</span><h2>Truck Delivery / Descarregamento</h2></div><p className="small-text" style={{ margin: 0 }}>Enter one truck delivery for <strong>{station.name}</strong>. Fill only the tanks that received fuel; empty tanks will be ignored when saving.</p>{editingUnloadingId ? <div className="edit-banner">Editing one saved unloading line. Update the tank line below, then press Save Delivery Lines.</div> : null}<div className="unloading-grid"><div><FieldLabel>Invoice / delivery note number</FieldLabel><input className="field-input" value={unloadReference} onChange={(event) => setUnloadReference(event.target.value)} placeholder="Example: INV123" /></div><div><FieldLabel>Truck plate</FieldLabel><input className="field-input" value={truckPlate} onChange={(event) => setTruckPlate(event.target.value)} placeholder="Example: ABC-123" /></div><div><FieldLabel>Driver name</FieldLabel><input className="field-input" value={driverName} onChange={(event) => setDriverName(event.target.value)} placeholder="Optional" /></div></div><div><FieldLabel>Operator / staff name</FieldLabel><input className="field-input" placeholder="Optional" value={operator} onChange={(event) => setOperator(event.target.value)} /></div><p className="small-text">Truck Delivery ID: <strong>{currentDeliveryId}</strong></p><div className="history-table-wrap"><table className="history-table"><thead><tr><th>Tank</th><th>Product</th><th>Initial MM</th><th>Final MM</th><th>Invoice L</th><th>Initial L</th><th>Final L</th><th>Received L</th><th>Difference</th></tr></thead><tbody>{Object.entries(stationTanks).map(([tankId, tankItem]) => { const line = deliveryTankReadings[tankId] || {}; const initialValue = Number(line.initialMm); const finalValue = Number(line.finalMm); const hasLine = line.initialMm !== undefined && line.initialMm !== "" && line.finalMm !== undefined && line.finalMm !== ""; const isInvalid = hasLine && (!Number.isFinite(initialValue) || !Number.isFinite(finalValue) || initialValue < 0 || finalValue < 0 || finalValue < initialValue || (Number(tankItem.maxMm) > 0 && finalValue > Number(tankItem.maxMm))); const lineCalculation = getDeliveryLineCalculation(tankItem, line); return <tr key={tankId} className={`history-row-${getProductClass(tankItem.product)}`}><td><strong>{tankItem.name}</strong><div className="small-text" style={{ marginTop: 4 }}>Max {tankItem.maxMm} mm</div></td><td><ProductBadge product={tankItem.product} /></td><td><input className="field-input" type="number" inputMode="decimal" min="0" max={tankItem.maxMm} value={line.initialMm || ""} onChange={(event) => updateDeliveryTankReading(tankId, "initialMm", event.target.value)} placeholder="Before" style={{ minWidth: 115 }} /></td><td><input className="field-input" type="number" inputMode="decimal" min="0" max={tankItem.maxMm} value={line.finalMm || ""} onChange={(event) => updateDeliveryTankReading(tankId, "finalMm", event.target.value)} placeholder="After" style={{ minWidth: 115 }} />{isInvalid ? <div className="small-text error-text">Check readings</div> : null}</td><td><input className="field-input" type="number" inputMode="decimal" min="0" value={line.invoiceLiters || ""} onChange={(event) => updateDeliveryTankReading(tankId, "invoiceLiters", event.target.value)} placeholder="Optional" style={{ minWidth: 120 }} /></td><td>{formatNumber(hasLine && !isInvalid ? lineCalculation.initialLiters : 0)} L</td><td>{formatNumber(hasLine && !isInvalid ? lineCalculation.finalLiters : 0)} L</td><td><strong>{formatNumber(hasLine && !isInvalid ? lineCalculation.deliveredLiters : 0)} L</strong></td><td className={(lineCalculation.variance || 0) >= 0 ? "variance-positive" : "variance-negative"}>{formatNumber(hasLine && !isInvalid ? lineCalculation.variance : 0)} L</td></tr>; })}</tbody></table></div><div className="unloading-actions"><button type="button" onClick={saveUnloading} className="primary-button">💾 Save Delivery Lines</button><button type="button" onClick={resetUnloadingForm} className="secondary-button">Reset</button></div></div></Card><Card><div className="card-content"><div className="history-header"><div><h2>Unloading History</h2><p>Saved truck unloading records for {station.name} on this device/browser.</p></div><button type="button" onClick={() => persistUnloadingHistory(unloadingHistory.filter((row) => row.station !== station.name))} className="secondary-button">🗑️ Clear This Station</button></div><div className="history-table-wrap"><table className="history-table"><thead><tr><th>Action</th><th>Date</th><th>Delivery ID</th><th>Station</th><th>Tank</th><th>Product</th><th>Initial MM</th><th>Final MM</th><th>Initial L</th><th>Final L</th><th>Received L</th><th>Invoice L</th><th>Diff L</th><th>Reference</th><th>Truck Plate</th><th>Driver</th><th>Operator</th></tr></thead><tbody>{stationUnloadingHistory.length === 0 ? <tr><td style={{ padding: "22px 8px", color: "#64748b" }} colSpan={17}>No unloading records saved yet for this station.</td></tr> : stationUnloadingHistory.map((row) => <tr key={row.id} className={`history-row-${getProductClass(row.product)}`}><td><button type="button" onClick={() => startEditUnloading(row)} className="secondary-button" style={{ minHeight: 34, padding: "7px 10px" }}>Edit</button></td><td>{row.date}</td><td>{row.deliveryId || createTruckDeliveryId(row.reference, row.truckPlate, row.driverName)}</td><td>{row.station}</td><td>{row.tank}</td><td><ProductBadge product={row.product} /></td><td>{row.initialMm}</td><td>{row.finalMm}</td><td>{formatNumber(row.initialLiters)} L</td><td>{formatNumber(row.finalLiters)} L</td><td>{formatNumber(row.deliveredLiters)} L</td><td>{formatNumber(row.invoiceLiters)} L</td><td className={row.variance >= 0 ? "variance-positive" : "variance-negative"}>{formatNumber(row.variance)} L</td><td>{row.reference}</td><td>{row.truckPlate || "Not entered"}</td><td>{row.driverName || "Not entered"}</td><td>{row.operator}</td></tr>)}</tbody></table></div></div></Card></> : null}
 
