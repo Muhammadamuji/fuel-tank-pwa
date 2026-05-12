@@ -105,7 +105,7 @@ const styles = `
   .login-error { margin: 0; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 14px; padding: 10px 12px; font-size: 13px; font-weight: 700; }
   @media (max-width:760px) {
     html, body { width: 100%; overflow-x: hidden; background: #f1f5f9; }
-    .app-shell { padding: 10px; padding-bottom: 92px; }
+    .app-shell { padding: 10px; padding-bottom: 18px; }
     .app-container { width: 100%; max-width: 100%; gap: 12px; }
     .app-header { display: grid; gap: 12px; align-items: start; }
     .app-title { font-size: 24px; }
@@ -114,18 +114,18 @@ const styles = `
     .status-pill, .logout-button { width: 100%; text-align: center; }
     .notice-card { display: none; }
     .page-nav {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      position: sticky;
+      top: 0;
       z-index: 50;
       display: grid;
       grid-template-columns: repeat(5, 1fr);
-      gap: 0;
-      background: #ffffff;
-      border-top: 1px solid #e2e8f0;
-      box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.12);
+      gap: 4px;
+      background: rgba(255,255,255,.96);
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.10);
       padding: 6px;
+      border-radius: 16px;
+      backdrop-filter: blur(10px);
     }
     .page-tab {
       border: 0;
