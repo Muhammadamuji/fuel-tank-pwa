@@ -97,8 +97,9 @@ const styles = `
     .app-header { display: grid; gap: 12px; align-items: start; }
     .app-title { font-size: 24px; }
     .app-subtitle { font-size: 13px; line-height: 1.4; }
-    .status-row { width: 100%; display: grid; grid-template-columns: 1fr; }
-    .status-pill, .logout-button { width: 100%; text-align: center; }
+    .status-row { width: 100%; display: flex; flex-wrap: wrap; gap: 6px; }
+    .status-pill { width: auto; padding: 6px 10px; font-size: 11px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; }
+    .logout-button { width: auto; min-height: 32px; padding: 6px 12px; font-size: 11px; border-radius: 10px; }
     .notice-card { display: none; }
     .page-nav { position: sticky; top: 0; z-index: 50; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; background: rgba(255,255,255,.96); border: 1px solid #e2e8f0; box-shadow: 0 8px 24px rgba(15,23,42,.10); padding: 6px; border-radius: 16px; backdrop-filter: blur(10px); }
     .page-tab { border: 0; border-radius: 12px; padding: 8px 4px; min-height: 54px; font-size: 10px; line-height: 1.15; display: grid; place-items: center; text-align: center; white-space: normal; }
