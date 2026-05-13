@@ -1020,18 +1020,13 @@ export default function FuelTankPWAPrototype() {
     const username = loginUsername.trim().toLowerCase();
     const password = loginPassword;
 
-    let availableUsers = users;
+    let availableUsers = await loadUsersFromCloud();
     let user = availableUsers.find((item) => item.active !== false && item.username.toLowerCase() === username && item.password === password);
-
-    if (!user) {
-      availableUsers = await loadUsersFromCloud();
-      user = availableUsers.find((item) => item.active !== false && item.username.toLowerCase() === username && item.password === password);
-    }
 
     setLoginLoading(false);
 
     if (!user) {
-      setLoginError("Wrong username or password, user is inactive, or users did not finish loading from Google Sheets.");
+      setLoginError("Login failed. The app loaded Google Sheets users, but this username/password was not found or the user is inactive.");
       return;
     }
 
