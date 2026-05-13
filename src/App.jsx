@@ -202,7 +202,7 @@ function makeId() {
 function normalizeReadingRow(row) {
   return {
     id: row?.id || makeId(),
-    date: row?.date || row?.created_at || new Date().toISOString(),
+    date: row?.date || row?.created_at || getCurrentTimestamp(),
     station: row?.station || "",
     tank: row?.tank || "",
     product: row?.product || "",
@@ -337,25 +337,50 @@ function getMonthDateRange(monthValue) {
   return { from: getDateInputValue(new Date(year, monthIndex, 1)), to: getDateInputValue(new Date(year, monthIndex + 1, 0)) };
 }
 
+function getCurrentTimestamp() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  const second = String(date.getSeconds()).padStart(2, "0");
+  return year + "-" + month + "-" + day + " " + hour + ":" + minute + ":" + second;
+}
+
 function parseSavedDate(value) {
   if (!value) return null;
-  const parsed = new Date(value);
-  if (!Number.isNaN(parsed.getTime())) return parsed;
   const text = String(value).trim();
-  const pattern = new RegExp("^([0-9]{1,2})/([0-9]{1,2})/([0-9]{4}),?\s+([0-9]{1,2}):([0-9]{2})(?::([0-9]{2}))?\s*(AM|PM)?$", "i");
-  const match = text.match(pattern);
-  if (!match) return null;
-  const month = Number(match[1]) - 1;
-  const day = Number(match[2]);
-  const year = Number(match[3]);
-  let hour = Number(match[4]);
-  const minute = Number(match[5]);
-  const second = Number(match[6] || 0);
-  const suffix = String(match[7] || "").toUpperCase();
-  if (suffix === "PM" && hour < 12) hour += 12;
-  if (suffix === "AM" && hour === 12) hour = 0;
-  const fallbackDate = new Date(year, month, day, hour, minute, second);
-  return Number.isNaN(fallbackDate.getTime()) ? null : fallbackDate;
+
+  if (text.includes("-") && (text.includes("T") || text.includes(" "))) {
+    const cleanText = text.replace("T", " ").replace("Z", "");
+    const datePart = cleanText.split(" ")[0];
+    const timePart = cleanText.split(" ")[1] || "00:00:00";
+    const datePieces = datePart.split("-");
+    const timePieces = timePart.split(":");
+    if (datePieces.length === 3 && timePieces.length >= 2) {
+      const parsedLocal = new Date(Number(datePieces[0]), Number(datePieces[1]) - 1, Number(datePieces[2]), Number(timePieces[0]), Number(timePieces[1]), Number(timePieces[2] || 0));
+      if (!Number.isNaN(parsedLocal.getTime())) return parsedLocal;
+    }
+  }
+
+  if (text.includes("/")) {
+    const cleanText = text.replace(",", " ").replace("  ", " ");
+    const parts = cleanText.split(" ").filter(Boolean);
+    const datePieces = (parts[0] || "").split("/");
+    const timePieces = (parts[1] || "00:00:00").split(":");
+    if (datePieces.length === 3 && timePieces.length >= 2) {
+      const suffix = String(parts[2] || "").toUpperCase();
+      let hour = Number(timePieces[0]);
+      if (suffix === "PM" && hour < 12) hour += 12;
+      if (suffix === "AM" && hour === 12) hour = 0;
+      const parsedSlash = new Date(Number(datePieces[2]), Number(datePieces[1]) - 1, Number(datePieces[0]), hour, Number(timePieces[1]), Number(timePieces[2] || 0));
+      if (!Number.isNaN(parsedSlash.getTime())) return parsedSlash;
+    }
+  }
+
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function getRowTime(row) {
@@ -435,7 +460,8 @@ function runSelfTests() {
   expect("csv parser quoted comma", parseSimpleCsvLine('A,"B,C",D').length === 3);
   expect("normalise row", normalizeReadingRow({ station: "A", tank: "T", mm: "5" }).mm === 5);
   expect("google payload rows", rowsFromGoogleSheetPayload([["id", "date", "station", "tank", "product", "mm", "liters", "percentage", "ullage", "operator"], ["1", "today", "S", "T", "Diesel", 1, 2, 3, 4, "O"]]).length === 1);
-  expect("latest sort", sortReadingsNewestFirst([{ date: "2026-12-05T18:47:04.000Z" }, { date: "2026-12-05T18:50:00.000Z" }])[0].date === "2026-12-05T18:50:00.000Z");
+  expect("latest sort iso", sortReadingsNewestFirst([{ date: "2026-05-12 18:47:04" }, { date: "2026-05-12 18:50:00" }])[0].date === "2026-05-12 18:50:00");
+  expect("latest sort slash", sortReadingsNewestFirst([{ date: "12/05/2026, 18:47:04" }, { date: "12/05/2026, 18:50:00" }])[0].date === "12/05/2026, 18:50:00");
   return results;
 }
 
@@ -568,7 +594,7 @@ export default function FuelTankPWAPrototype() {
 
   const saveReading = async () => {
     if (savingReadings) return;
-    const now = new Date().toISOString();
+    const now = getCurrentTimestamp();
     const rowsToSave = Object.entries(stationTanks).map(([tankId, tankItem]) => {
       const mmText = dailyReadings[tankId];
       const mmValue = Number(mmText);
