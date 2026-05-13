@@ -91,6 +91,12 @@ const styles = `
   .login-form { display: grid; gap: 14px; }
   .login-error { margin: 0; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 14px; padding: 10px 12px; font-size: 13px; font-weight: 700; }
   @media (max-width:760px) {
+    .app-header { position: sticky; top: 0; z-index: 60; background: rgba(241,245,249,.96); padding-bottom: 6px; backdrop-filter: blur(10px); }
+    .app-subtitle { display: none; }
+    .status-row { display: none; }
+    .app-title { font-size: 20px; }
+    .app-header > div:first-child { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+    .app-header > div:first-child::after { content: "⛽"; font-size: 22px; }
     html, body { width: 100%; overflow-x: hidden; background: #f1f5f9; }
     .app-shell { padding: 10px 10px 18px; }
     .app-container { width: 100%; max-width: 100%; gap: 12px; }
