@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 const GOOGLE_SHEETS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbylMjygoZuQvGRl3Ji0SgAwKMvikXp2Rcp0t6hS2BaoDXMukPAQUspmHOiETUMgpgzS/exec";
+const USERS_SHEET_ACTION_GET = "getUsers";
+const USERS_SHEET_ACTION_SAVE = "saveUsers";
 
 const styles = `
   * { box-sizing: border-box; }
@@ -220,6 +222,70 @@ function repairUserWithUsers(user, users = getStoredUsers()) {
   const match = users.find((item) => item.username.toLowerCase() === String(user.username).toLowerCase() && item.active !== false);
   if (!match) return null;
   return { username: match.username, role: match.role, permissions: { ...getDefaultPermissions(), ...match.permissions } };
+}
+
+async function loadUsersFromGoogleSheetsUrl() {
+  const callbackName = `fuelTankUsersCallback_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  return new Promise((resolve, reject) => {
+    if (typeof document === "undefined") {
+      reject(new Error("Document is not available"));
+      return;
+    }
+    const script = document.createElement("script");
+    const cleanup = () => {
+      if (window[callbackName]) delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    };
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("Users sync did not respond."));
+    }, 15000);
+    window[callbackName] = (data) => {
+      window.clearTimeout(timeout);
+      cleanup();
+      resolve(data);
+    };
+    script.onerror = () => {
+      window.clearTimeout(timeout);
+      cleanup();
+      reject(new Error("Users sync script could not load."));
+    };
+    script.src = `${GOOGLE_SHEETS_WEB_APP_URL}?action=${encodeURIComponent(USERS_SHEET_ACTION_GET)}&callback=${encodeURIComponent(callbackName)}&ts=${Date.now()}`;
+    document.body.appendChild(script);
+  });
+}
+
+async function saveUsersToGoogleSheetsUrl(users) {
+  const callbackName = `fuelTankSaveUsersCallback_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const payload = encodeURIComponent(JSON.stringify(users));
+  return new Promise((resolve, reject) => {
+    if (typeof document === "undefined") {
+      reject(new Error("Document is not available"));
+      return;
+    }
+    const script = document.createElement("script");
+    const cleanup = () => {
+      if (window[callbackName]) delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    };
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("Users save did not respond."));
+    }, 15000);
+    window[callbackName] = (data) => {
+      window.clearTimeout(timeout);
+      cleanup();
+      if (data?.success) resolve(data);
+      else reject(new Error(data?.error || "Users save failed."));
+    };
+    script.onerror = () => {
+      window.clearTimeout(timeout);
+      cleanup();
+      reject(new Error("Users save script could not load."));
+    };
+    script.src = `${GOOGLE_SHEETS_WEB_APP_URL}?action=${encodeURIComponent(USERS_SHEET_ACTION_SAVE)}&users=${payload}&callback=${encodeURIComponent(callbackName)}&ts=${Date.now()}`;
+    document.body.appendChild(script);
+  });
 }
 const HISTORY_KEY = "fuelTankReadingHistory";
 const UNLOADING_HISTORY_KEY = "fuelTankUnloadingHistory";
@@ -581,6 +647,7 @@ function HistoryLevelVisual({ percentage }) {
 
 export default function FuelTankPWAPrototype() {
   const [users, setUsers] = useState(() => getStoredUsers());
+  const [userSyncStatus, setUserSyncStatus] = useState("Users loading locally");
   const [loggedInUser, setLoggedInUser] = useState(() => repairUserWithUsers(safeLocalStorageGet(SESSION_KEY, null), getStoredUsers()));
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -676,6 +743,45 @@ export default function FuelTankPWAPrototype() {
   const persistHistory = (rows) => { const cleanRows = sortReadingsNewestFirst(rows.map(normalizeReadingRow)); setHistory(cleanRows); safeLocalStorageSet(HISTORY_KEY, cleanRows); };
   const persistUnloadingHistory = (rows) => { const sortedRows = [...rows].sort((a, b) => getRowTime(b) - getRowTime(a)); setUnloadingHistory(sortedRows); safeLocalStorageSet(UNLOADING_HISTORY_KEY, sortedRows); };
   const persistSalesHistory = (rows) => { setSalesImportHistory(rows); safeLocalStorageSet(SALES_IMPORT_HISTORY_KEY, rows); };
+
+  const loadUsersFromCloud = async () => {
+    try {
+      setUserSyncStatus("Loading users from Google Sheets");
+      const payload = await loadUsersFromGoogleSheetsUrl();
+      const cloudUsers = Array.isArray(payload?.users) ? payload.users.map(normalizeUserAccount).filter(Boolean) : [];
+      if (cloudUsers.length > 0) {
+        const normalizedUsers = persistUsersList(cloudUsers);
+        setUsers(normalizedUsers);
+        setUserSyncStatus("Users loaded from Google Sheets");
+        const repairedSession = repairUserWithUsers(loggedInUser, normalizedUsers);
+        if (loggedInUser && repairedSession) {
+          safeLocalStorageSet(SESSION_KEY, repairedSession);
+          setLoggedInUser(repairedSession);
+        }
+      } else {
+        setUserSyncStatus("No cloud users found. Using local defaults.");
+      }
+    } catch (error) {
+      setUserSyncStatus(error?.message || "Users sync failed. Using local users.");
+    }
+  };
+
+  const persistUsersEverywhere = async (nextUsers) => {
+    const normalizedUsers = persistUsersList(nextUsers);
+    setUsers(normalizedUsers);
+    try {
+      setUserSyncStatus("Saving users to Google Sheets");
+      const result = await saveUsersToGoogleSheetsUrl(normalizedUsers);
+      setUserSyncStatus(`Users saved to Google Sheets. Saved: ${result?.saved ?? normalizedUsers.length}`);
+    } catch (error) {
+      setUserSyncStatus(`Users saved locally only. Error: ${error?.message || "Unknown error"}`);
+    }
+    return normalizedUsers;
+  };
+
+  useEffect(() => {
+    loadUsersFromCloud();
+  }, []);
 
   useEffect(() => {
     if (!loggedInUser) return;
@@ -857,7 +963,7 @@ export default function FuelTankPWAPrototype() {
     setUserForm((current) => ({ ...current, permissions: { ...current.permissions, [permissionKey]: checked } }));
   };
 
-  const saveManagedUser = () => {
+  const saveManagedUser = async () => {
     if (!permissions.users) return;
     const username = userForm.username.trim();
     const password = String(userForm.password || "");
@@ -879,10 +985,11 @@ export default function FuelTankPWAPrototype() {
       permissions: { ...getDefaultPermissions(), ...userForm.permissions },
     });
     const nextUsers = selectedUserId ? users.map((user) => user.id === selectedUserId ? savedUser : user) : [savedUser, ...users];
-    const normalizedUsers = persistUsersList(nextUsers);
-    setUsers(normalizedUsers);
+    setUserFormMessage("Saving user to Google Sheets...");
+    const savedUsers = await persistUsersEverywhere(nextUsers);
     setSelectedUserId(savedUser.id);
-    setUserFormMessage("User saved successfully.");
+    const savedInCloud = userSyncStatus !== "Users saved locally only";
+    setUserFormMessage("Save finished. Check the User sync status box below for the real result.");
     if (loggedInUser?.username.toLowerCase() === savedUser.username.toLowerCase()) {
       const updatedSession = { username: savedUser.username, role: savedUser.role, permissions: savedUser.permissions };
       safeLocalStorageSet(SESSION_KEY, updatedSession);
@@ -897,10 +1004,8 @@ export default function FuelTankPWAPrototype() {
       return;
     }
     const nextUsers = users.filter((user) => user.id !== selectedManagedUser.id);
-    const normalizedUsers = persistUsersList(nextUsers);
-    setUsers(normalizedUsers);
-    setSelectedUserId(normalizedUsers[0]?.id || "");
-    setUserFormMessage("User deleted.");
+    persistUsersEverywhere(nextUsers).then((normalizedUsers) => setSelectedUserId(normalizedUsers[0]?.id || ""));
+    setUserFormMessage("User deleted and sent to Google Sheets.");
   };
 
   const handleLogin = (event) => {
@@ -942,6 +1047,6 @@ export default function FuelTankPWAPrototype() {
 
     {activePage === "sales" ? <><Card><div className="card-content form-grid"><div className="section-title"><span style={{ fontSize: 24 }}>📥</span><h2>Sales CSV Import</h2></div><div className="import-box"><p style={{ margin: 0 }}>Upload the NetPOS Wet Sales CSV export. The app will read sales by date, tank and litres.</p><input className="field-input" type="file" accept=".csv,.txt" onChange={handleSalesCsvFile} /><div className="warning-box">{salesImportStatus}</div></div><div className="import-summary"><div className="metric-box"><p className="metric-label">Imported rows</p><p className="metric-value">{stationSalesImportHistory.length}</p></div><div className="metric-box"><p className="metric-label">Total sales</p><p className="metric-value">{formatNumber(salesTotals.liters)} L</p></div><div className="metric-box diesel"><p className="metric-label">Diesel sales</p><p className="metric-value">{formatNumber(salesTotals.diesel)} L</p></div><div className="metric-box petrol"><p className="metric-label">Petrol sales</p><p className="metric-value">{formatNumber(salesTotals.petrol)} L</p></div></div>{permissions.clearData ? <button type="button" className="secondary-button" onClick={() => { persistSalesHistory([]); setSalesImportStatus("Sales imports cleared."); }}>Clear Imported Sales</button> : null}</div></Card><Card><div className="card-content"><div className="history-header"><div><h2>Imported Sales History</h2><p>Rows imported from NetPOS CSV files.</p></div></div><div className="history-table-wrap"><table className="history-table"><thead><tr><th>Date</th><th>Station</th><th>Tank</th><th>Product</th><th>Litres</th><th>Gross</th><th>Amount</th><th>File</th><th>Imported At</th></tr></thead><tbody>{stationSalesImportHistory.length === 0 ? <tr><td style={{ padding: "22px 8px", color: "#64748b" }} colSpan={9}>No sales imported yet for this station.</td></tr> : stationSalesImportHistory.map((row) => <tr key={row.id} className={`history-row-${getProductClass(row.product)}`}><td>{row.displayDate || row.date}</td><td>{row.station}</td><td>{row.tank}</td><td><ProductBadge product={row.product} /></td><td>{formatNumber(row.liters)} L</td><td>MT{formatNumber(row.gross)}</td><td>MT{formatNumber(row.amount)}</td><td>{row.fileName || "CSV"}</td><td>{row.importedAt}</td></tr>)}</tbody></table></div></div></Card></> : null}
 
-    {activePage === "users" && permissions.users ? <Card><div className="card-content form-grid"><div className="history-header"><div><h2>👥 User Management</h2><p>Create users and control exactly what each one can see or do inside this app.</p></div><button type="button" className="primary-button" onClick={startNewUser}>➕ New User</button></div><div className="user-management-grid"><div className="user-list">{users.map((user) => <button key={user.id} type="button" className={`user-list-button ${selectedManagedUser?.id === user.id ? "active" : ""}`} onClick={() => selectManagedUser(user.id)}><strong>{user.username}</strong><div className="small-text" style={{ marginTop: 4 }}>{user.role} • {user.active === false ? "Inactive" : "Active"}</div></button>)}</div><div className="form-grid"><div className="unloading-grid"><div><FieldLabel>Username</FieldLabel><input className="field-input" value={userForm.username} onChange={(event) => setUserForm((current) => ({ ...current, username: event.target.value }))} placeholder="example: cashier1" /></div><div><FieldLabel>Password</FieldLabel><input className="field-input" value={userForm.password} onChange={(event) => setUserForm((current) => ({ ...current, password: event.target.value }))} placeholder="Set password" /></div><div><FieldLabel>Role / title</FieldLabel><input className="field-input" value={userForm.role} onChange={(event) => setUserForm((current) => ({ ...current, role: event.target.value }))} placeholder="Operator, Manager, Viewer..." /></div></div><label className="permission-item" style={{ maxWidth: 260 }}><input type="checkbox" checked={userForm.active !== false} onChange={(event) => setUserForm((current) => ({ ...current, active: event.target.checked }))} /><span><span className="permission-title">Active user</span><div className="permission-help">Inactive users cannot login.</div></span></label><div className="permission-grid">{PERMISSION_DEFINITIONS.map(([key, label, help]) => <label key={key} className="permission-item"><input type="checkbox" checked={Boolean(userForm.permissions?.[key])} onChange={(event) => updateUserPermission(key, event.target.checked)} /><span><span className="permission-title">{label}</span><div className="permission-help">{help}</div></span></label>)}</div>{userFormMessage ? <div className="diagnostic-box">{userFormMessage}</div> : null}<div className="unloading-actions"><button type="button" className="primary-button" onClick={saveManagedUser}>💾 Save User</button>{selectedManagedUser ? <button type="button" className="secondary-button" onClick={deleteManagedUser}>🗑️ Delete User</button> : null}<button type="button" className="secondary-button" onClick={() => { const defaults = persistUsersList(DEFAULT_USERS); setUsers(defaults); setSelectedUserId(defaults[0]?.id || ""); setUserFormMessage("Default users restored."); }}>Restore Default Users</button></div><div className="warning-box">Prototype note: these users are stored in this browser/localStorage. For real multi-device security, connect this to a backend or Google Sheet users table later.</div></div></div></div></Card> : null}
+    {activePage === "users" && permissions.users ? <Card><div className="card-content form-grid"><div className="history-header"><div><h2>👥 User Management</h2><p>Create users and control exactly what each one can see or do inside this app.</p></div><button type="button" className="primary-button" onClick={startNewUser}>➕ New User</button></div><div className="user-management-grid"><div className="user-list">{users.map((user) => <button key={user.id} type="button" className={`user-list-button ${selectedManagedUser?.id === user.id ? "active" : ""}`} onClick={() => selectManagedUser(user.id)}><strong>{user.username}</strong><div className="small-text" style={{ marginTop: 4 }}>{user.role} • {user.active === false ? "Inactive" : "Active"}</div></button>)}</div><div className="form-grid"><div className="unloading-grid"><div><FieldLabel>Username</FieldLabel><input className="field-input" value={userForm.username} onChange={(event) => setUserForm((current) => ({ ...current, username: event.target.value }))} placeholder="example: cashier1" /></div><div><FieldLabel>Password</FieldLabel><input className="field-input" value={userForm.password} onChange={(event) => setUserForm((current) => ({ ...current, password: event.target.value }))} placeholder="Set password" /></div><div><FieldLabel>Role / title</FieldLabel><input className="field-input" value={userForm.role} onChange={(event) => setUserForm((current) => ({ ...current, role: event.target.value }))} placeholder="Operator, Manager, Viewer..." /></div></div><label className="permission-item" style={{ maxWidth: 260 }}><input type="checkbox" checked={userForm.active !== false} onChange={(event) => setUserForm((current) => ({ ...current, active: event.target.checked }))} /><span><span className="permission-title">Active user</span><div className="permission-help">Inactive users cannot login.</div></span></label><div className="permission-grid">{PERMISSION_DEFINITIONS.map(([key, label, help]) => <label key={key} className="permission-item"><input type="checkbox" checked={Boolean(userForm.permissions?.[key])} onChange={(event) => updateUserPermission(key, event.target.checked)} /><span><span className="permission-title">{label}</span><div className="permission-help">{help}</div></span></label>)}</div>{userFormMessage ? <div className="diagnostic-box">{userFormMessage}</div> : null}<div className="unloading-actions"><button type="button" className="primary-button" onClick={saveManagedUser}>💾 Save User</button>{selectedManagedUser ? <button type="button" className="secondary-button" onClick={deleteManagedUser}>🗑️ Delete User</button> : null}<button type="button" className="secondary-button" onClick={() => { persistUsersEverywhere(DEFAULT_USERS).then((defaults) => setSelectedUserId(defaults[0]?.id || "")); setUserFormMessage("Default users restored and sent to Google Sheets."); }}>Restore Default Users</button></div><div className="warning-box">User sync status: {userSyncStatus}<br />Users are now saved locally and sent to the Users sheet. All devices will see changes after refresh/login once the Apps Script below is updated.</div></div></div></div></Card> : null}
   </div></div>;
 }
