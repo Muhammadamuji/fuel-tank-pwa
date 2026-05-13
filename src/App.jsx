@@ -652,6 +652,7 @@ export default function FuelTankPWAPrototype() {
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
   const [activePage, setActivePage] = useState(() => getDefaultPageForUser(repairUser(safeLocalStorageGet(SESSION_KEY, null))));
   const [selectedStationId, setSelectedStationId] = useState("petromocVilankulo");
   const [dailyReadings, setDailyReadings] = useState({});
@@ -758,11 +759,13 @@ export default function FuelTankPWAPrototype() {
           safeLocalStorageSet(SESSION_KEY, repairedSession);
           setLoggedInUser(repairedSession);
         }
-      } else {
-        setUserSyncStatus("No cloud users found. Using local defaults.");
+        return normalizedUsers;
       }
+      setUserSyncStatus("No cloud users found. Using local defaults.");
+      return users;
     } catch (error) {
       setUserSyncStatus(error?.message || "Users sync failed. Using local users.");
+      return users;
     }
   };
 
@@ -1008,10 +1011,30 @@ export default function FuelTankPWAPrototype() {
     setUserFormMessage("User deleted and sent to Google Sheets.");
   };
 
-  const handleLogin = (event) => {
+  const handleLogin = async (event) => {
     event.preventDefault();
-    const user = users.find((item) => item.active !== false && item.username.toLowerCase() === loginUsername.trim().toLowerCase() && item.password === loginPassword);
-    if (!user) { setLoginError("Wrong username or password, or user is inactive."); return; }
+    if (loginLoading) return;
+    setLoginLoading(true);
+    setLoginError("");
+
+    const username = loginUsername.trim().toLowerCase();
+    const password = loginPassword;
+
+    let availableUsers = users;
+    let user = availableUsers.find((item) => item.active !== false && item.username.toLowerCase() === username && item.password === password);
+
+    if (!user) {
+      availableUsers = await loadUsersFromCloud();
+      user = availableUsers.find((item) => item.active !== false && item.username.toLowerCase() === username && item.password === password);
+    }
+
+    setLoginLoading(false);
+
+    if (!user) {
+      setLoginError("Wrong username or password, user is inactive, or users did not finish loading from Google Sheets.");
+      return;
+    }
+
     const safeUser = { username: user.username, role: user.role, permissions: { ...getDefaultPermissions(), ...user.permissions } };
     safeLocalStorageSet(SESSION_KEY, safeUser);
     setLoggedInUser(safeUser);
@@ -1029,7 +1052,7 @@ export default function FuelTankPWAPrototype() {
   };
 
   if (!loggedInUser) {
-    return <div className="login-shell"><style>{styles}</style><div className="login-card"><div className="login-logo">⛽</div><div><h1 className="login-title">Fuel Tank Reading</h1><p className="login-subtitle">Login to access tank readings and saved history.</p></div><form className="login-form" onSubmit={handleLogin}><div><FieldLabel>Username</FieldLabel><input className="field-input" value={loginUsername} onChange={(event) => setLoginUsername(event.target.value)} placeholder="admin" autoComplete="username" /></div><div><FieldLabel>Password</FieldLabel><input className="field-input" type="password" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} placeholder="Enter password" autoComplete="current-password" /></div>{loginError ? <p className="login-error">{loginError}</p> : null}<button type="submit" className="primary-button">🔐 Login</button></form><p className="small-text" style={{ margin: 0 }}>Default users: admin / 1234, manager / 2222, operator / 1111, viewer / 9999. Admin can edit users and permissions inside the app.</p></div></div>;
+    return <div className="login-shell"><style>{styles}</style><div className="login-card"><div className="login-logo">⛽</div><div><h1 className="login-title">Fuel Tank Reading</h1><p className="login-subtitle">Login to access tank readings and saved history.</p></div><form className="login-form" onSubmit={handleLogin}><div><FieldLabel>Username</FieldLabel><input className="field-input" value={loginUsername} onChange={(event) => setLoginUsername(event.target.value)} placeholder="admin" autoComplete="username" /></div><div><FieldLabel>Password</FieldLabel><input className="field-input" type="password" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} placeholder="Enter password" autoComplete="current-password" /></div>{loginError ? <p className="login-error">{loginError}</p> : null}<button type="submit" className="primary-button" disabled={loginLoading}>{loginLoading ? "Loading users..." : "🔐 Login"}</button></form><div className="diagnostic-box">User sync status: {userSyncStatus}</div><p className="small-text" style={{ margin: 0 }}>Default users: admin / 1234, manager / 2222, operator / 1111, viewer / 9999. Admin can edit users and permissions inside the app.</p></div></div>;
   }
 
   return <div className="app-shell"><style>{styles}</style><div className="app-container">
