@@ -10,8 +10,13 @@ const styles = `
   .app-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
   .app-title { margin: 0; font-size: 34px; line-height: 1.1; }
   .app-subtitle { margin: 8px 0 0; color: #475569; }
-  .status-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .status-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; position: relative; }
   .status-pill { background: #fff; border-radius: 999px; padding: 10px 14px; font-size: 13px; box-shadow: 0 4px 16px rgba(15,23,42,.07); }
+  .user-menu-wrap { position: relative; }
+  .user-circle { width: 42px; height: 42px; border-radius: 999px; border: 0; background: #0f172a; color: #fff; font-weight: 900; cursor: pointer; display: grid; place-items: center; box-shadow: 0 6px 18px rgba(15,23,42,.18); }
+  .user-dropdown { position: absolute; right: 0; top: 50px; min-width: 190px; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 16px 40px rgba(15,23,42,.16); padding: 10px; z-index: 90; display: grid; gap: 8px; }
+  .user-dropdown-title { margin: 0; font-size: 13px; font-weight: 900; }
+  .user-dropdown-subtitle { margin: 2px 0 0; font-size: 11px; color: #64748b; }
   .card { background: #fff; border-radius: 18px; box-shadow: 0 8px 24px rgba(15,23,42,.08); border: 1px solid #e2e8f0; }
   .card-content { padding: 22px; }
   .page-nav { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -91,37 +96,32 @@ const styles = `
   .login-form { display: grid; gap: 14px; }
   .login-error { margin: 0; background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; border-radius: 14px; padding: 10px 12px; font-size: 13px; font-weight: 700; }
   @media (max-width:760px) {
-    .app-header { position: sticky; top: 0; z-index: 60; background: rgba(241,245,249,.96); padding-bottom: 6px; backdrop-filter: blur(10px); }
-    .app-subtitle { display: none; }
-    .status-row { display: none; }
-    .app-title { font-size: 20px; }
-    .app-header > div:first-child { display: flex; align-items: center; justify-content: space-between; width: 100%; }
-    .app-header > div:first-child::after { content: "⛽"; font-size: 22px; }
     html, body { width: 100%; overflow-x: hidden; background: #f1f5f9; }
-    .app-shell { padding: 10px 10px 18px; }
-    .app-container { width: 100%; max-width: 100%; gap: 12px; }
-    .app-header { display: grid; gap: 12px; align-items: start; }
-    .app-title { font-size: 24px; }
-    .app-subtitle { font-size: 13px; line-height: 1.4; }
-    .status-row { width: 100%; display: flex; flex-wrap: wrap; gap: 6px; }
-    .status-pill { width: auto; padding: 6px 10px; font-size: 11px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; }
-    .logout-button { width: auto; min-height: 32px; padding: 6px 12px; font-size: 11px; border-radius: 10px; }
-    .notice-card { display: none; }
-    .page-nav { position: sticky; top: 0; z-index: 50; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; background: rgba(255,255,255,.96); border: 1px solid #e2e8f0; box-shadow: 0 8px 24px rgba(15,23,42,.10); padding: 6px; border-radius: 16px; backdrop-filter: blur(10px); }
-    .page-tab { border: 0; border-radius: 12px; padding: 8px 4px; min-height: 54px; font-size: 10px; line-height: 1.15; display: grid; place-items: center; text-align: center; white-space: normal; }
+    .app-shell { padding: 4px 8px 16px; }
+    .app-container { width: 100%; max-width: 100%; gap: 8px; }
+    .app-header { position: sticky; top: 0; z-index: 80; background: rgba(241,245,249,.96); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; margin: 0; }
+    .app-title { font-size: 16px; line-height: 1; margin: 0; }
+    .app-subtitle { display: none; }
+    .status-row { display: flex; width: auto; gap: 0; }
+    .status-pill { display: none; }
+    .logout-button { width: 100%; min-height: 38px; padding: 8px 10px; font-size: 13px; border-radius: 12px; }
+    .user-circle { width: 34px; height: 34px; font-size: 12px; }
+    .user-dropdown { top: 40px; right: 0; min-width: 180px; }
+    .page-nav { position: sticky; top: 42px; z-index: 70; display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; background: rgba(255,255,255,.96); border: 1px solid #e2e8f0; box-shadow: 0 6px 18px rgba(15,23,42,.09); padding: 4px; border-radius: 12px; backdrop-filter: blur(10px); }
+    .page-tab { border: 0; border-radius: 9px; padding: 5px 2px; min-height: 40px; font-size: 9px; line-height: 1.1; display: grid; place-items: center; text-align: center; white-space: normal; }
     .page-tab.active { background: #0f172a; color: #fff; }
     .unloading-grid { grid-template-columns: 1fr; gap: 12px; }
-    .card { border-radius: 18px; box-shadow: 0 5px 18px rgba(15,23,42,.07); }
-    .card-content { padding: 14px; }
-    .form-grid { gap: 13px; }
-    .section-title h2 { font-size: 19px; }
+    .card { border-radius: 16px; box-shadow: 0 5px 18px rgba(15,23,42,.07); }
+    .card-content { padding: 12px; }
+    .form-grid { gap: 12px; }
+    .section-title h2 { font-size: 18px; }
     .field-label { font-size: 13px; }
-    .field-input { min-height: 52px; font-size: 16px; border-radius: 14px; padding: 12px; }
-    .primary-button, .secondary-button { width: 100%; min-height: 52px; font-size: 15px; border-radius: 16px; }
+    .field-input { min-height: 50px; font-size: 16px; border-radius: 14px; padding: 12px; }
+    .primary-button, .secondary-button { width: 100%; min-height: 50px; font-size: 15px; border-radius: 16px; }
     .metric-grid, .report-metrics, .import-summary { grid-template-columns: 1fr; gap: 10px; }
-    .metric-box { padding: 13px; border-radius: 15px; }
+    .metric-box { padding: 12px; border-radius: 15px; }
     .metric-value { font-size: 20px; }
-    .tank-visual { height: 76px; border-radius: 18px; border-width: 4px; }
+    .tank-visual { height: 70px; border-radius: 16px; border-width: 3px; }
     .history-header { display: grid; gap: 12px; }
     .history-table-wrap { overflow: visible; width: 100%; }
     .history-table { width: 100%; min-width: 0; border-collapse: separate; border-spacing: 0 10px; font-size: 14px; }
@@ -510,6 +510,7 @@ export default function FuelTankPWAPrototype() {
   const [loadingReadings, setLoadingReadings] = useState(false);
   const [lastSyncError, setLastSyncError] = useState("");
   const [testResults] = useState(() => runSelfTests());
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const unloadingSectionRef = useRef(null);
 
   const station = stations[selectedStationId] || stations.petromocVilankulo;
@@ -733,7 +734,7 @@ export default function FuelTankPWAPrototype() {
   }
 
   return <div className="app-shell"><style>{styles}</style><div className="app-container">
-    <header className="app-header"><div><h1 className="app-title">Fuel Tank Reading</h1><p className="app-subtitle">Fast mobile readings for liters, ullage, truck unloading, and delivery reports.</p></div><div className="status-row"><div className="status-pill">{loggedInUser.username} • {loggedInUser.role}</div><div className="status-pill">{isInstalled ? "Installed app mode" : "PWA-ready"}</div><div className="status-pill">{syncStatus}</div><button type="button" onClick={handleLogout} className="logout-button">Logout</button></div></header>
+    <header className="app-header"><div><h1 className="app-title">Fuel Tank Reading</h1><p className="app-subtitle">Fast mobile readings for liters, ullage, truck unloading, and delivery reports.</p></div><div className="status-row"><div className="status-pill">{isInstalled ? "Installed app mode" : "PWA-ready"}</div><div className="status-pill">{syncStatus}</div><div className="user-menu-wrap"><button type="button" className="user-circle" onClick={() => setUserMenuOpen((open) => !open)}>{String(loggedInUser.username || "U").slice(0, 1).toUpperCase()}</button>{userMenuOpen ? <div className="user-dropdown"><div><p className="user-dropdown-title">{loggedInUser.username}</p><p className="user-dropdown-subtitle">{loggedInUser.role}</p></div><button type="button" onClick={handleLogout} className="logout-button">Logout</button></div> : null}</div></div></header>
     <Card><div className="card-content form-grid"><div className="section-title"><span style={{ fontSize: 24 }}>🏪</span><h2>Current Station</h2></div><select value={selectedStationId} onChange={(event) => selectStation(event.target.value, true)} className="field-input">{Object.entries(stations).map(([id, item]) => <option key={id} value={id}>{item.name}</option>)}</select><p className="small-text" style={{ margin: 0 }}>Everything below belongs only to <strong>{station.name}</strong>: readings, unloading, reports and sales imports.</p></div></Card>
     <nav className="page-nav" aria-label="App pages"><button type="button" className={`page-tab ${activePage === "dashboard" ? "active" : ""}`} onClick={() => setActivePage("dashboard")}>📍 Dashboard</button><button type="button" className={`page-tab ${activePage === "daily" ? "active" : ""}`} onClick={() => setActivePage("daily")}>⛽ Daily Readings</button><button type="button" className={`page-tab ${activePage === "delivery" ? "active" : ""}`} onClick={() => setActivePage("delivery")}>🚚 Truck Delivery</button><button type="button" className={`page-tab ${activePage === "reports" ? "active" : ""}`} onClick={() => setActivePage("reports")}>📊 Reports</button><button type="button" className={`page-tab ${activePage === "sales" ? "active" : ""}`} onClick={() => setActivePage("sales")}>📥 Sales Import</button></nav>
 
