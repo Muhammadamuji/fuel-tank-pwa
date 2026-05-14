@@ -312,7 +312,7 @@ function getCurrentTimestamp() {
 
 function interpolateLiters(mm, points = []) {
   const value = Number(mm);
-  if (!Array.isArray(points) || points.length === 0 || !Number.isFinite(value) || value <= 0) return 0;
+  if (!Array.isArray(points) || points.length === 0 || !Number.isFinite(value) || value < 0) return 0;
   const sorted = points.map((point) => [Number(point?.[0]), Number(point?.[1])]).filter(([height, liters]) => Number.isFinite(height) && Number.isFinite(liters)).sort((a, b) => a[0] - b[0]);
   if (sorted.length === 0) return 0;
   if (value <= sorted[0][0]) return sorted[0][1];
