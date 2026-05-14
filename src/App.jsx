@@ -319,22 +319,27 @@ function getCurrentTimestamp() {
 function interpolateLiters(mm, points = []) {
   const value = Number(mm);
   if (!Array.isArray(points) || points.length === 0 || !Number.isFinite(value) || value < 0) return 0;
-  const sorted = points.map((point) => [Number(point?.[0]), Number(point?.[1])]).filter(([height, liters]) => Number.isFinite(height) && Number.isFinite(liters)).sort((a, b) => a[0] - b[0]);
+
+  const sorted = points
+    .map((point) => [Number(point?.[0]), Number(point?.[1])])
+    .filter(([height, liters]) => Number.isFinite(height) && Number.isFinite(liters))
+    .sort((a, b) => a[0] - b[0]);
+
   if (sorted.length === 0) return 0;
-  if (value <= sorted[0][0]) return sorted[0][1];
-  if (value >= sorted[sorted.length - 1][0]) return sorted[sorted.length - 1][1];
+  if (value <= sorted[0][0]) return Math.round(sorted[0][1]);
+  if (value >= sorted[sorted.length - 1][0]) return Math.round(sorted[sorted.length - 1][1]);
+
   for (let index = 0; index < sorted.length - 1; index += 1) {
     const [mm1, liters1] = sorted[index];
     const [mm2, liters2] = sorted[index + 1];
-    if (value >= mm1 && value <= mm2) return mm2 === mm1 ? liters2 : liters1 + ((value - mm1) / (mm2 - mm1)) * (liters2 - liters1);
-  }
-  return 0;
-}
 
-function generatePointsFromAnchors(anchors, maxMm) {
-  const points = [];
-  for (let mm = 0; mm <= maxMm; mm += 1) points.push([mm, Math.round(interpolateLiters(mm, anchors))]);
-  return points;
+    if (value >= mm1 && value <= mm2) {
+      const result = mm2 === mm1 ? liters2 : liters1 + ((value - mm1) / (mm2 - mm1)) * (liters2 - liters1);
+      return Math.round(result);
+    }
+  }
+
+  return 0;
 }
 
 const stations = {
@@ -615,8 +620,8 @@ function getTankLevelInfo(percentage) {
   return { className: "level-full", label: "Full / Near Full", color: "#22c55e" };
 }
 
-function formatNumber(value) {
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(Number(value) || 0);
+function formatNumber(value, digits = 0) {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: digits }).format(Number(value) || 0);
 }
 
 function isStandaloneApp() {
@@ -1014,9 +1019,8 @@ export default function FuelTankPWAPrototype() {
     });
     const nextUsers = selectedUserId ? users.map((user) => user.id === selectedUserId ? savedUser : user) : [savedUser, ...users];
     setUserFormMessage("Saving user to Google Sheets...");
-    const savedUsers = await persistUsersEverywhere(nextUsers);
+    await persistUsersEverywhere(nextUsers);
     setSelectedUserId(savedUser.id);
-    const savedInCloud = userSyncStatus !== "Users saved locally only";
     setUserFormMessage("Save finished. Check the User sync status box below for the real result.");
     if (loggedInUser?.username.toLowerCase() === savedUser.username.toLowerCase()) {
       const updatedSession = { username: savedUser.username, role: savedUser.role, stationId: savedUser.stationId || "all", permissions: savedUser.permissions };
