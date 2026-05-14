@@ -201,6 +201,7 @@ function normalizeUserAccount(user) {
     password: String(user.password ?? ""),
     role: String(user.role || "Staff"),
     active: user.active !== false,
+    stationId: user.stationId || "all",
     permissions: { ...getDefaultPermissions(), ...(user.permissions || {}) },
   };
 }
@@ -222,7 +223,7 @@ function repairUserWithUsers(user, users = getStoredUsers()) {
   if (!user?.username) return null;
   const match = users.find((item) => item.username.toLowerCase() === String(user.username).toLowerCase() && item.active !== false);
   if (!match) return null;
-  return { username: match.username, role: match.role, permissions: { ...getDefaultPermissions(), ...match.permissions } };
+  return { username: match.username, role: match.role, stationId: match.stationId || "all", permissions: { ...getDefaultPermissions(), ...match.permissions } };
 }
 
 async function loadUsersFromGoogleSheetsUrl() {
@@ -678,12 +679,14 @@ export default function FuelTankPWAPrototype() {
   const [lastSyncError, setLastSyncError] = useState("");
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState(() => getStoredUsers()[0]?.id || "");
-  const [userForm, setUserForm] = useState({ username: "", password: "", role: "Staff", active: true, permissions: getDefaultPermissions() });
+  const [userForm, setUserForm] = useState({ username: "", password: "", role: "Staff", active: true, stationId: "all", permissions: getDefaultPermissions() });
   const [userFormMessage, setUserFormMessage] = useState("");
   const unloadingSectionRef = useRef(null);
 
   const permissions = loggedInUser?.permissions || {};
   const canViewCalculated = Boolean(permissions.viewCalculated);
+  const userStationId = loggedInUser?.stationId || "all";
+  const availableStations = useMemo(() => Object.entries(stations).filter(([id]) => userStationId === "all" || userStationId === id), [userStationId]);
   const selectedManagedUser = useMemo(() => users.find((user) => user.id === selectedUserId) || users[0] || null, [users, selectedUserId]);
   const station = stations[selectedStationId] || stations.petromocVilankulo;
   const stationTanks = station.tanks || {};
@@ -793,12 +796,17 @@ export default function FuelTankPWAPrototype() {
 
   useEffect(() => {
     if (!loggedInUser) return;
+    if (userStationId !== "all" && selectedStationId !== userStationId) {
+      setSelectedStationId(userStationId);
+      setDailyReadings({});
+      setDeliveryTankReadings({});
+    }
     if (!canUsePage(activePage)) setActivePage(getDefaultPageForUser(loggedInUser));
-  }, [loggedInUser, activePage]);
+  }, [loggedInUser, activePage, userStationId, selectedStationId]);
 
   useEffect(() => {
     if (!selectedManagedUser) {
-      setUserForm({ username: "", password: "", role: "Staff", active: true, permissions: getDefaultPermissions() });
+      setUserForm({ username: "", password: "", role: "Staff", active: true, stationId: "all", permissions: getDefaultPermissions() });
       return;
     }
     setUserForm({
@@ -806,6 +814,7 @@ export default function FuelTankPWAPrototype() {
       password: selectedManagedUser.password,
       role: selectedManagedUser.role,
       active: selectedManagedUser.active !== false,
+      stationId: selectedManagedUser.stationId || "all",
       permissions: { ...getDefaultPermissions(), ...selectedManagedUser.permissions },
     });
     setUserFormMessage("");
@@ -859,7 +868,7 @@ export default function FuelTankPWAPrototype() {
   useEffect(() => { if (loggedInUser?.permissions?.refreshCloud) loadReadingsFromGoogleSheets(); }, [loggedInUser?.username]);
 
   const selectStation = (stationId, clearReading = true) => {
-    if (!permissions.changeStation) return;
+    if (!permissions.changeStation || userStationId !== "all") return;
     setSelectedStationId(stationId);
     if (clearReading) { setDailyReadings({}); setDeliveryTankReadings({}); }
   };
@@ -990,6 +999,7 @@ export default function FuelTankPWAPrototype() {
       password,
       role: userForm.role || "Staff",
       active: userForm.active !== false,
+      stationId: userForm.stationId || "all",
       permissions: { ...getDefaultPermissions(), ...userForm.permissions },
     });
     const nextUsers = selectedUserId ? users.map((user) => user.id === selectedUserId ? savedUser : user) : [savedUser, ...users];
@@ -999,7 +1009,7 @@ export default function FuelTankPWAPrototype() {
     const savedInCloud = userSyncStatus !== "Users saved locally only";
     setUserFormMessage("Save finished. Check the User sync status box below for the real result.");
     if (loggedInUser?.username.toLowerCase() === savedUser.username.toLowerCase()) {
-      const updatedSession = { username: savedUser.username, role: savedUser.role, permissions: savedUser.permissions };
+      const updatedSession = { username: savedUser.username, role: savedUser.role, stationId: savedUser.stationId || "all", permissions: savedUser.permissions };
       safeLocalStorageSet(SESSION_KEY, updatedSession);
       setLoggedInUser(updatedSession);
     }
@@ -1035,7 +1045,7 @@ export default function FuelTankPWAPrototype() {
       return;
     }
 
-    const safeUser = { username: user.username, role: user.role, permissions: { ...getDefaultPermissions(), ...user.permissions } };
+    const safeUser = { username: user.username, role: user.role, stationId: user.stationId || "all", permissions: { ...getDefaultPermissions(), ...user.permissions } };
     safeLocalStorageSet(SESSION_KEY, safeUser);
     setLoggedInUser(safeUser);
     setActivePage(getDefaultPageForUser(safeUser));
@@ -1057,7 +1067,7 @@ export default function FuelTankPWAPrototype() {
 
   return <div className="app-shell"><style>{styles}</style><div className="app-container">
     <header className="app-header"><div><h1 className="app-title">Fuel Tank Reading</h1><p className="app-subtitle">Fast mobile readings for liters, ullage, truck unloading, and delivery reports.</p></div><div className="status-row"><div className="status-pill">{isInstalled ? "Installed app mode" : "PWA-ready"}</div><div className="status-pill">{syncStatus}</div><div className="user-menu-wrap"><button type="button" className="user-circle" onClick={() => setUserMenuOpen((open) => !open)}>{String(loggedInUser.username || "U").slice(0, 1).toUpperCase()}</button>{userMenuOpen ? <div className="user-dropdown"><div><p className="user-dropdown-title">{loggedInUser.username}</p><p className="user-dropdown-subtitle">{loggedInUser.role}</p></div><button type="button" onClick={handleLogout} className="logout-button">Logout</button></div> : null}</div></div></header>
-    <Card><div className="card-content form-grid"><div className="section-title"><span style={{ fontSize: 24 }}>🏪</span><h2>Current Station</h2></div><select value={selectedStationId} onChange={(event) => selectStation(event.target.value, true)} className="field-input" disabled={!permissions.changeStation}>{Object.entries(stations).map(([id, item]) => <option key={id} value={id}>{item.name}</option>)}</select><p className="small-text" style={{ margin: 0 }}>Everything below belongs only to <strong>{station.name}</strong>: readings, unloading, reports and sales imports.</p>{!permissions.changeStation ? <p className="small-text" style={{ margin: 0 }}>This user cannot change station.</p> : null}</div></Card>
+    <Card><div className="card-content form-grid"><div className="section-title"><span style={{ fontSize: 24 }}>🏪</span><h2>Current Station</h2></div><select value={selectedStationId} onChange={(event) => selectStation(event.target.value, true)} className="field-input" disabled={!permissions.changeStation || userStationId !== "all"}>{availableStations.map(([id, item]) => <option key={id} value={id}>{item.name}</option>)}</select><p className="small-text" style={{ margin: 0 }}>Everything below belongs only to <strong>{station.name}</strong>: readings, unloading, reports and sales imports.</p>{!permissions.changeStation || userStationId !== "all" ? <p className="small-text" style={{ margin: 0 }}>This user is locked to this station.</p> : null}</div></Card>
     <nav className="page-nav" aria-label="App pages">{permissions.dashboard && canViewCalculated ? <button type="button" className={`page-tab ${activePage === "dashboard" ? "active" : ""}`} onClick={() => goToPage("dashboard")}>📍 Dashboard</button> : null}{permissions.daily ? <button type="button" className={`page-tab ${activePage === "daily" ? "active" : ""}`} onClick={() => goToPage("daily")}>⛽ Daily Readings</button> : null}{permissions.delivery ? <button type="button" className={`page-tab ${activePage === "delivery" ? "active" : ""}`} onClick={() => goToPage("delivery")}>🚚 Truck Delivery</button> : null}{permissions.reports && canViewCalculated ? <button type="button" className={`page-tab ${activePage === "reports" ? "active" : ""}`} onClick={() => goToPage("reports")}>📊 Reports</button> : null}{permissions.sales && canViewCalculated ? <button type="button" className={`page-tab ${activePage === "sales" ? "active" : ""}`} onClick={() => goToPage("sales")}>📥 Sales Import</button> : null}{permissions.users ? <button type="button" className={`page-tab ${activePage === "users" ? "active" : ""}`} onClick={() => goToPage("users")}>👥 Users</button> : null}</nav>
 
     {activePage === "dashboard" ? <Card><div className="card-content form-grid"><div className="section-title"><span style={{ fontSize: 24 }}>📍</span><h2>Tank Overview</h2></div><p className="small-text" style={{ margin: 0 }}>Latest saved readings for <strong>{station.name}</strong>.</p><div className="report-metrics"><div className="metric-box diesel"><p className="metric-label">Total Diesel in Tanks</p><p className="metric-value">{formatNumber(productStockTotals.diesel?.liters || 0)} L</p><p className="small-text" style={{ marginBottom: 0 }}>Space: {formatNumber(productStockTotals.diesel?.ullage || 0)} L • Tanks: {productStockTotals.diesel?.tanks || 0}</p></div><div className="metric-box petrol"><p className="metric-label">Total Petrol in Tanks</p><p className="metric-value">{formatNumber(productStockTotals.petrol?.liters || 0)} L</p><p className="small-text" style={{ marginBottom: 0 }}>Space: {formatNumber(productStockTotals.petrol?.ullage || 0)} L • Tanks: {productStockTotals.petrol?.tanks || 0}</p></div></div><div className="report-metrics">{Object.entries(stationTanks).map(([tankId, tankItem]) => { const latest = latestReadingsByTank[tankItem.name]; const tankLiters = Number(latest?.liters) || 0; const tankCapacity = Number(tankItem.capacity) || 0; const tankPercentage = latest ? (Number(latest.percentage) || 0) : 0; const tankUllage = latest ? Math.max(tankCapacity - tankLiters, 0) : tankCapacity; const levelInfo = getTankLevelInfo(tankPercentage); return <div key={tankId} className={`metric-box ${getProductClass(tankItem.product)}`} style={{ display: "grid", gap: 12 }}><div><p className="metric-label">{tankItem.name}</p><p className="metric-value" style={{ fontSize: 22 }}>{tankItem.product}</p><p className="small-text" style={{ marginBottom: 0 }}>Last: {latest?.date || "No reading yet"}</p></div><div className="tank-visual"><div className={`tank-fill ${levelInfo.className}`} style={{ width: `${tankPercentage}%` }} /><div className="tank-center"><div className="tank-badge"><strong>{formatNumber(tankPercentage)}%</strong></div></div></div><div className="metric-grid" style={{ gridTemplateColumns: "1fr 1fr" }}><div><p className="metric-label">Liters</p><p className="metric-value" style={{ fontSize: 18 }}>{formatNumber(tankLiters)} L</p></div><div><p className="metric-label">Space</p><p className="metric-value" style={{ fontSize: 18 }}>{formatNumber(tankUllage)} L</p></div></div><span className="tank-status-badge" style={{ "--level-color": levelInfo.color, justifySelf: "start" }}>{latest ? levelInfo.label : "No reading"}</span></div>; })}</div><div className="unloading-actions">{permissions.daily ? <button type="button" className="primary-button" onClick={() => goToPage("daily")}>Enter Daily Readings</button> : null}<button type="button" className="secondary-button" onClick={loadReadingsFromGoogleSheets} disabled={loadingReadings || !permissions.refreshCloud}>{loadingReadings ? "Refreshing..." : "Refresh From Google Sheets"}</button></div>{lastSyncError ? <div className="diagnostic-box"><strong>Google Sheets load problem:</strong><br />{lastSyncError}<br /><span className="small-text">Make sure Apps Script has doGet with JSONP support and deployment access is Anyone.</span></div> : null}</div></Card> : null}
@@ -1070,6 +1080,6 @@ export default function FuelTankPWAPrototype() {
 
     {activePage === "sales" ? <><Card><div className="card-content form-grid"><div className="section-title"><span style={{ fontSize: 24 }}>📥</span><h2>Sales CSV Import</h2></div><div className="import-box"><p style={{ margin: 0 }}>Upload the NetPOS Wet Sales CSV export. The app will read sales by date, tank and litres.</p><input className="field-input" type="file" accept=".csv,.txt" onChange={handleSalesCsvFile} /><div className="warning-box">{salesImportStatus}</div></div><div className="import-summary"><div className="metric-box"><p className="metric-label">Imported rows</p><p className="metric-value">{stationSalesImportHistory.length}</p></div><div className="metric-box"><p className="metric-label">Total sales</p><p className="metric-value">{formatNumber(salesTotals.liters)} L</p></div><div className="metric-box diesel"><p className="metric-label">Diesel sales</p><p className="metric-value">{formatNumber(salesTotals.diesel)} L</p></div><div className="metric-box petrol"><p className="metric-label">Petrol sales</p><p className="metric-value">{formatNumber(salesTotals.petrol)} L</p></div></div>{permissions.clearData ? <button type="button" className="secondary-button" onClick={() => { persistSalesHistory([]); setSalesImportStatus("Sales imports cleared."); }}>Clear Imported Sales</button> : null}</div></Card><Card><div className="card-content"><div className="history-header"><div><h2>Imported Sales History</h2><p>Rows imported from NetPOS CSV files.</p></div></div><div className="history-table-wrap"><table className="history-table"><thead><tr><th>Date</th><th>Station</th><th>Tank</th><th>Product</th><th>Litres</th><th>Gross</th><th>Amount</th><th>File</th><th>Imported At</th></tr></thead><tbody>{stationSalesImportHistory.length === 0 ? <tr><td style={{ padding: "22px 8px", color: "#64748b" }} colSpan={9}>No sales imported yet for this station.</td></tr> : stationSalesImportHistory.map((row) => <tr key={row.id} className={`history-row-${getProductClass(row.product)}`}><td>{row.displayDate || row.date}</td><td>{row.station}</td><td>{row.tank}</td><td><ProductBadge product={row.product} /></td><td>{formatNumber(row.liters)} L</td><td>MT{formatNumber(row.gross)}</td><td>MT{formatNumber(row.amount)}</td><td>{row.fileName || "CSV"}</td><td>{row.importedAt}</td></tr>)}</tbody></table></div></div></Card></> : null}
 
-    {activePage === "users" && permissions.users ? <Card><div className="card-content form-grid"><div className="history-header"><div><h2>👥 User Management</h2><p>Create users and control exactly what each one can see or do inside this app.</p></div><button type="button" className="primary-button" onClick={startNewUser}>➕ New User</button></div><div className="user-management-grid"><div className="user-list">{users.map((user) => <button key={user.id} type="button" className={`user-list-button ${selectedManagedUser?.id === user.id ? "active" : ""}`} onClick={() => selectManagedUser(user.id)}><strong>{user.username}</strong><div className="small-text" style={{ marginTop: 4 }}>{user.role} • {user.active === false ? "Inactive" : "Active"}</div></button>)}</div><div className="form-grid"><div className="unloading-grid"><div><FieldLabel>Username</FieldLabel><input className="field-input" value={userForm.username} onChange={(event) => setUserForm((current) => ({ ...current, username: event.target.value }))} placeholder="example: cashier1" /></div><div><FieldLabel>Password</FieldLabel><input className="field-input" value={userForm.password} onChange={(event) => setUserForm((current) => ({ ...current, password: event.target.value }))} placeholder="Set password" /></div><div><FieldLabel>Role / title</FieldLabel><input className="field-input" value={userForm.role} onChange={(event) => setUserForm((current) => ({ ...current, role: event.target.value }))} placeholder="Operator, Manager, Viewer..." /></div></div><label className="permission-item" style={{ maxWidth: 260 }}><input type="checkbox" checked={userForm.active !== false} onChange={(event) => setUserForm((current) => ({ ...current, active: event.target.checked }))} /><span><span className="permission-title">Active user</span><div className="permission-help">Inactive users cannot login.</div></span></label><div className="permission-grid">{PERMISSION_DEFINITIONS.map(([key, label, help]) => <label key={key} className="permission-item"><input type="checkbox" checked={Boolean(userForm.permissions?.[key])} onChange={(event) => updateUserPermission(key, event.target.checked)} /><span><span className="permission-title">{label}</span><div className="permission-help">{help}</div></span></label>)}</div>{userFormMessage ? <div className="diagnostic-box">{userFormMessage}</div> : null}<div className="unloading-actions"><button type="button" className="primary-button" onClick={saveManagedUser}>💾 Save User</button>{selectedManagedUser ? <button type="button" className="secondary-button" onClick={deleteManagedUser}>🗑️ Delete User</button> : null}<button type="button" className="secondary-button" onClick={() => { persistUsersEverywhere(DEFAULT_USERS).then((defaults) => setSelectedUserId(defaults[0]?.id || "")); setUserFormMessage("Default users restored and sent to Google Sheets."); }}>Restore Default Users</button></div><div className="warning-box">User sync status: {userSyncStatus}<br />Users are now saved locally and sent to the Users sheet. All devices will see changes after refresh/login once the Apps Script below is updated.</div></div></div></div></Card> : null}
+    {activePage === "users" && permissions.users ? <Card><div className="card-content form-grid"><div className="history-header"><div><h2>👥 User Management</h2><p>Create users and control exactly what each one can see or do inside this app.</p></div><button type="button" className="primary-button" onClick={startNewUser}>➕ New User</button></div><div className="user-management-grid"><div className="user-list">{users.map((user) => <button key={user.id} type="button" className={`user-list-button ${selectedManagedUser?.id === user.id ? "active" : ""}`} onClick={() => selectManagedUser(user.id)}><strong>{user.username}</strong><div className="small-text" style={{ marginTop: 4 }}>{user.role} • {user.active === false ? "Inactive" : "Active"} • {user.stationId && user.stationId !== "all" ? (stations[user.stationId]?.name || user.stationId) : "All stations"}</div></button>)}</div><div className="form-grid"><div className="unloading-grid"><div><FieldLabel>Username</FieldLabel><input className="field-input" value={userForm.username} onChange={(event) => setUserForm((current) => ({ ...current, username: event.target.value }))} placeholder="example: cashier1" /></div><div><FieldLabel>Password</FieldLabel><input className="field-input" value={userForm.password} onChange={(event) => setUserForm((current) => ({ ...current, password: event.target.value }))} placeholder="Set password" /></div><div><FieldLabel>Role / title</FieldLabel><input className="field-input" value={userForm.role} onChange={(event) => setUserForm((current) => ({ ...current, role: event.target.value }))} placeholder="Operator, Manager, Viewer..." /></div></div><div><FieldLabel>Assigned station</FieldLabel><select className="field-input" value={userForm.stationId || "all"} onChange={(event) => setUserForm((current) => ({ ...current, stationId: event.target.value }))}><option value="all">All stations / Administrator</option>{Object.entries(stations).map(([id, item]) => <option key={id} value={id}>{item.name}</option>)}</select><p className="small-text" style={{ marginBottom: 0 }}>Reading operators should be assigned to only one station.</p></div><label className="permission-item" style={{ maxWidth: 260 }}><input type="checkbox" checked={userForm.active !== false} onChange={(event) => setUserForm((current) => ({ ...current, active: event.target.checked }))} /><span><span className="permission-title">Active user</span><div className="permission-help">Inactive users cannot login.</div></span></label><div className="permission-grid">{PERMISSION_DEFINITIONS.map(([key, label, help]) => <label key={key} className="permission-item"><input type="checkbox" checked={Boolean(userForm.permissions?.[key])} onChange={(event) => updateUserPermission(key, event.target.checked)} /><span><span className="permission-title">{label}</span><div className="permission-help">{help}</div></span></label>)}</div>{userFormMessage ? <div className="diagnostic-box">{userFormMessage}</div> : null}<div className="unloading-actions"><button type="button" className="primary-button" onClick={saveManagedUser}>💾 Save User</button>{selectedManagedUser ? <button type="button" className="secondary-button" onClick={deleteManagedUser}>🗑️ Delete User</button> : null}<button type="button" className="secondary-button" onClick={() => { persistUsersEverywhere(DEFAULT_USERS).then((defaults) => setSelectedUserId(defaults[0]?.id || "")); setUserFormMessage("Default users restored and sent to Google Sheets."); }}>Restore Default Users</button></div><div className="warning-box">User sync status: {userSyncStatus}<br />Users are now saved locally and sent to the Users sheet. All devices will see changes after refresh/login once the Apps Script below is updated.</div></div></div></div></Card> : null}
   </div></div>;
 }
