@@ -5,6 +5,12 @@ import {
   totalTank3Points,
   totalTank4Points,
 } from "./totalVilankuloCalibration";
+import {
+  petromocTank1Points,
+  petromocTank2Points,
+  petromocTank3Points,
+  petromocTank4Points,
+} from "./petromocVilankuloCalibration";
 
 const GOOGLE_SHEETS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbylMjygoZuQvGRl3Ji0SgAwKMvikXp2Rcp0t6hS2BaoDXMukPAQUspmHOiETUMgpgzS/exec";
 const USERS_SHEET_ACTION_GET = "getUsers";
@@ -336,10 +342,10 @@ const stations = {
     name: "PETROMOC VILANKULO",
     location: "Vilankulo",
     tanks: {
-      tank1: { name: "Tank 1", product: "Diesel", capacity: 29500, maxMm: 2182, points: [[1, 0], [10, 0], [62, 250], [95, 500], [128, 750], [154, 1000], [208, 1500], [245, 2000], [300, 2500], [341, 3000], [417, 4000], [490, 5000], [560, 6000], [625, 7000], [690, 8000], [754, 9000], [815, 10000], [879, 11000], [939, 12000], [1062, 14000], [1183, 16000], [1303, 18000], [1360, 19000], [1415, 20000], [1480, 21000], [1542, 22000], [1610, 23000], [1678, 24000], [1750, 25000], [1822, 26000], [1903, 27000], [1947, 27500], [1995, 28000], [2046, 28500], [2115, 29000], [2140, 29250], [2182, 29500]] },
-      tank2: { name: "Tank 2", product: "Petrol", capacity: 15000, maxMm: 1715, points: [[1, 5], [15, 10], [64, 250], [110, 500], [156, 750], [196, 1000], [261, 1500], [294, 1750], [327, 2000], [357, 2250], [387, 2500], [416, 2750], [445, 3000], [552, 4000], [651, 5000], [675, 5250], [699, 5500], [723, 5750], [747, 6000], [930, 8000], [1025, 9000], [1120, 10000], [1144, 10250], [1168, 10500], [1192, 10750], [1216, 11000], [1267, 11500], [1318, 12000], [1367, 12500], [1418, 13000], [1447, 13250], [1476, 13500], [1533, 14000], [1594, 14500], [1632, 14750], [1675, 15000], [1715, 15250]] },
-      tank3: { name: "Tank 3", product: "Diesel", capacity: 10000, maxMm: 1572, points: [[1, 3], [86, 250], [151, 500], [208, 750], [258, 1000], [349, 1500], [430, 2000], [468, 2250], [506, 2500], [542, 2750], [578, 3000], [717, 4000], [852, 5000], [885, 5250], [918, 5500], [951, 5750], [984, 6000], [1018, 6250], [1052, 6500], [1086, 6750], [1120, 7000], [1189, 7500], [1258, 8000], [1331, 8500], [1404, 9000], [1443, 9250], [1485, 9500], [1528, 9750], [1572, 10000]] },
-      tank4: { name: "Tank 4", product: "Petrol", capacity: 15000, maxMm: 1753, points: [[1, 0], [64, 250], [109, 500], [155, 750], [198, 1000], [271, 1500], [338, 2000], [369, 2250], [400, 2500], [675, 5000], [700, 5250], [725, 5500], [750, 5750], [775, 6000], [960, 8000], [1161, 10000], [1262, 11000], [1289, 11250], [1316, 11500], [1343, 11750], [1370, 12000], [1398, 12250], [1426, 12500], [1485, 13000], [1510, 13250], [1535, 13500], [1596, 14000], [1630, 14250], [1668, 14500], [1707, 14750], [1753, 15000]] },
+      tank1: { name: "Tank 1", product: "Diesel", capacity: 29500, maxMm: 2182, points: petromocTank1Points },
+      tank2: { name: "Tank 2", product: "Petrol", capacity: 15250, maxMm: 1715, points: petromocTank2Points },
+      tank3: { name: "Tank 3", product: "Diesel", capacity: 10000, maxMm: 1572, points: petromocTank3Points },
+      tank4: { name: "Tank 4", product: "Petrol", capacity: 15000, maxMm: 1753, points: petromocTank4Points },
     },
   },
   totalVilankulo: {
