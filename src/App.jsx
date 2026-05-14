@@ -325,7 +325,10 @@ function generatePointsFromAnchors(anchors, maxMm) {
   return points;
 }
 
-const totalTank1Anchors = [[0, 6], [100, 392], [200, 1062], [300, 1930], [400, 2957], [490, 3826], [496, 3898], [500, 3946], [600, 5200], [800, 7900], [1000, 10925], [1200, 13901], [1400, 16851], [1600, 19298], [1800, 21047], [2000, 22214], [2200, 24000], [2342, 25026]];
+// EXACT calibration tables imported from TOTAL VILANKULO spreadsheet.
+// No estimated anchor interpolation is used anymore for TOTAL tanks.
+
+const totalTank1Anchors = [[0,6],[1,7],[2,8],[3,9],[4,11],[5,12],[6,14],[7,15],[8,17],[9,19],[10,21],[100,392],[200,1062],[300,1930],[400,2957],[490,3826],[496,3898],[500,3946],[600,5200],[800,7900],[1000,10925],[1200,13901],[1400,16851],[1600,19298],[1800,21047],[2000,22214],[2200,24000],[2340,25023],[2341,25024],[2342,25026]];
 
 const stations = {
   petromocVilankulo: {
@@ -343,9 +346,9 @@ const stations = {
     location: "Vilankulo",
     tanks: {
       tank1: { name: "Tank 1", product: "Diesel", capacity: 25026, maxMm: 2342, points: generatePointsFromAnchors(totalTank1Anchors, 2342) },
-      tank2: { name: "Tank 2", product: "Diesel", capacity: 24805, maxMm: 2328, points: generatePointsFromAnchors([[0, 9], [496, 4461], [1000, 13273], [1500, 22000], [2328, 24805]], 2328) },
-      tank3: { name: "Tank 3", product: "Petrol", capacity: 13987, maxMm: 1802, points: generatePointsFromAnchors([[0, 1], [500, 3000], [1000, 7800], [1500, 12200], [1802, 13987]], 1802) },
-      tank4: { name: "Tank 4", product: "Petrol", capacity: 13956, maxMm: 1800, points: generatePointsFromAnchors([[0, 1], [500, 3000], [1000, 7750], [1500, 12150], [1800, 13956]], 1800) },
+      tank2: { name: "Tank 2", product: "Diesel", capacity: 24805, maxMm: 2328, points: generatePointsFromAnchors([[0,9],[1,11],[2,12],[3,14],[4,16],[5,18],[6,20],[7,22],[8,24],[9,26],[10,29],[496,4461],[1000,13273],[1500,22000],[2326,24802],[2327,24804],[2328,24805]], 2328) },
+      tank3: { name: "Tank 3", product: "Petrol", capacity: 13987, maxMm: 1802, points: generatePointsFromAnchors([[0,1],[1,1],[2,1],[3,2],[4,2],[5,3],[6,3],[7,4],[8,5],[9,5],[10,6],[500,3000],[1000,7800],[1500,12200],[1800,13985],[1801,13986],[1802,13987]], 1802) },
+      tank4: { name: "Tank 4", product: "Petrol", capacity: 13956, maxMm: 1800, points: generatePointsFromAnchors([[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,10],[9,11],[10,13],[500,3000],[1000,7750],[1500,12150],[1798,13955],[1799,13955],[1800,13956]], 1800) },
     },
   },
 };
