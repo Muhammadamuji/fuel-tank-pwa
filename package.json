@@ -15,5 +15,8 @@
     "react-dom": "latest",
     "vite": "latest",
     "vite-plugin-pwa": "latest"
+  },
+  "devDependencies": {
+    "xlsx": "^0.18.5"
   }
 }
