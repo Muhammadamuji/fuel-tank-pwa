@@ -1020,6 +1020,8 @@ export default function FuelTankPWAPrototype() {
   const saveReading = async () => {
     if (savingReadings || !permissions.daily) return;
     const now = getCurrentTimestamp();
+    const existingReading = editingReadingId ? history.find((row) => row.id === editingReadingId) : null;
+    const readingDate = existingReading?.date || now;
     const rowsToSave = Object.entries(stationTanks).map(([tankId, tankItem]) => {
       const mmText = dailyReadings[tankId];
       const mmValue = Number(mmText);
@@ -1028,7 +1030,7 @@ export default function FuelTankPWAPrototype() {
       const tankLiters = interpolateLiters(mmValue, tankItem.points || []);
       const tankCapacity = Number(tankItem.capacity) || 0;
       const tankPercentage = tankCapacity > 0 ? Math.min((tankLiters / tankCapacity) * 100, 100) : 0;
-      return normalizeReadingRow({ id: editingReadingId || makeId(), date: now, station: station.name, tank: tankItem.name, product: tankItem.product, mm: mmValue, liters: tankLiters, percentage: tankPercentage, ullage: Math.max(tankCapacity - tankLiters, 0), operator: operator || loggedInUser?.username || "Not entered" });
+      return normalizeReadingRow({ id: editingReadingId || makeId(), date: readingDate, station: station.name, tank: tankItem.name, product: tankItem.product, mm: mmValue, liters: tankLiters, percentage: tankPercentage, ullage: Math.max(tankCapacity - tankLiters, 0), operator: operator || loggedInUser?.username || existingReading?.operator || "Not entered" });
     }).filter(Boolean);
     if (rowsToSave.length === 0) return;
     setSavingReadings(true);
