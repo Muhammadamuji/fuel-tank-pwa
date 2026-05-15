@@ -28,8 +28,8 @@ const styles = `
   .status-pill { background: #fff; border-radius: 999px; padding: 10px 14px; font-size: 13px; box-shadow: 0 4px 16px rgba(15,23,42,.07); }
   .app-brand { min-width: 0; }
   .header-controls { flex-wrap: nowrap; gap: 12px; }
-  .station-top-select { width: 175px; min-width: 175px; max-width: 175px; min-height: 36px; height: 36px; font-size: 9px; font-weight: 500; padding: 4px 28px 4px 10px; border-radius: 999px; flex-shrink: 0; }
-  .station-top-pill { background: #fff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 8px 10px; font-size: 9px; font-weight: 500; white-space: nowrap; box-shadow: 0 4px 16px rgba(15,23,42,.07); }
+  .station-top-select { width: 175px; min-width: 175px; max-width: 175px; min-height: 36px; height: 36px; font-size: 5px; font-weight: 500; padding: 4px 28px 4px 10px; border-radius: 999px; flex-shrink: 0; }
+  .station-top-pill { background: #fff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 8px 10px; font-size: 5px; font-weight: 500; white-space: nowrap; box-shadow: 0 4px 16px rgba(15,23,42,.07); }
   .user-menu-wrap { position: relative; }
   .user-circle { width: 42px; height: 42px; border-radius: 999px; border: 0; background: #0f172a; color: #fff; font-weight: 900; cursor: pointer; display: grid; place-items: center; box-shadow: 0 6px 18px rgba(15,23,42,.18); }
   .user-dropdown { position: absolute; right: 0; top: 50px; min-width: 190px; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 16px 40px rgba(15,23,42,.16); padding: 10px; z-index: 90; display: grid; gap: 8px; }
