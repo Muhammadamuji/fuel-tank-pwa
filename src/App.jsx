@@ -21,15 +21,15 @@ const styles = `
   body { margin: 0; }
   .app-shell { min-height: 100vh; background: #f1f5f9; padding: 24px; font-family: Arial, sans-serif; color: #0f172a; }
   .app-container { max-width: 1180px; margin: 0 auto; display: grid; gap: 22px; }
-  .app-header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+  .app-header { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: nowrap; }
   .app-title { margin: 0; font-size: 34px; line-height: 1.1; }
   .app-subtitle { margin: 8px 0 0; color: #475569; }
   .status-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; position: relative; }
   .status-pill { background: #fff; border-radius: 999px; padding: 10px 14px; font-size: 13px; box-shadow: 0 4px 16px rgba(15,23,42,.07); }
-  .app-brand { min-width: 0; }
-  .header-controls { flex-wrap: nowrap; gap: 12px; }
-  .station-top-select { width: 175px; min-width: 175px; max-width: 175px; min-height: 36px; height: 36px; font-size: 5px; font-weight: 500; padding: 4px 28px 4px 10px; border-radius: 999px; flex-shrink: 0; }
-  .station-top-pill { background: #fff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 8px 10px; font-size: 5px; font-weight: 500; white-space: nowrap; box-shadow: 0 4px 16px rgba(15,23,42,.07); }
+  .app-brand { flex: 0 0 auto; min-width: 0; }
+  .header-controls { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; gap: 12px; justify-content: flex-end; }
+  .station-top-select { flex: 1 1 auto; width: auto; min-width: 0; max-width: 260px; min-height: 36px; height: 36px; font-size: 11px; font-weight: 600; padding: 4px 30px 4px 12px; border-radius: 999px; }
+  .station-top-pill { flex: 1 1 auto; max-width: 260px; min-width: 0; background: #fff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 9px 12px; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 16px rgba(15,23,42,.07); }
   .user-menu-wrap { position: relative; }
   .user-circle { width: 42px; height: 42px; border-radius: 999px; border: 0; background: #0f172a; color: #fff; font-weight: 900; cursor: pointer; display: grid; place-items: center; box-shadow: 0 6px 18px rgba(15,23,42,.18); }
   .user-dropdown { position: absolute; right: 0; top: 50px; min-width: 190px; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 16px 40px rgba(15,23,42,.16); padding: 10px; z-index: 90; display: grid; gap: 8px; }
@@ -153,14 +153,14 @@ const styles = `
     .app-shell { padding: 4px 8px 16px; }
     .app-container { width: 100%; max-width: 100%; gap: 8px; }
     .app-header { position: sticky; top: 0; z-index: 80; background: rgba(241,245,249,.96); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; margin: 0; flex-wrap: nowrap; }
-    .app-brand { flex: 0 0 auto; }
+    .app-brand { flex: 0 0 30px; width: 30px; min-width: 30px; }
     .app-title { font-size: 14px; line-height: 1; margin: 0; }
     .app-subtitle { display: none; }
-    .status-row { display: flex; width: auto; gap: 12px; align-items:center; flex-wrap: nowrap; }
+    .status-row { display: flex; flex: 1 1 auto; min-width: 0; width: auto; gap: 10px; align-items:center; flex-wrap: nowrap; justify-content: flex-end; }
     .status-pill { display: none; }
-    .station-top-select { width: 175px; min-width: 175px; max-width: 175px; min-height: 34px; height: 34px; font-size: 9px; font-weight:500; padding: 4px 26px 4px 10px; border-radius: 999px; }
-    .station-top-pill { font-size: 9px; font-weight:500; padding: 8px 10px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
-    .header-controls { gap: 12px; }
+    .station-top-select { flex: 1 1 auto; width: auto; min-width: 0; max-width: none; min-height: 34px; height: 34px; font-size: 10px; font-weight:500; padding: 4px 28px 4px 10px; border-radius: 999px; }
+    .station-top-pill { flex: 1 1 auto; min-width: 0; font-size: 10px; font-weight:500; padding: 8px 10px; max-width: none; overflow: hidden; text-overflow: ellipsis; }
+    .header-controls { gap: 10px; }
     .logout-button { width: 100%; min-height: 38px; padding: 8px 10px; font-size: 13px; border-radius: 12px; }
     .user-circle { width: 34px; height: 34px; font-size: 12px; }
     .user-dropdown { top: 40px; right: 0; min-width: 180px; }
