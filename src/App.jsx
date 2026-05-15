@@ -28,8 +28,8 @@ const styles = `
   .status-pill { background: #fff; border-radius: 999px; padding: 10px 14px; font-size: 13px; box-shadow: 0 4px 16px rgba(15,23,42,.07); }
   .app-brand { min-width: 0; }
   .header-controls { flex-wrap: nowrap; gap: 12px; }
-  .station-top-select { width: 175px; min-width: 175px; max-width: 175px; min-height: 36px; height: 36px; font-size: 11px; font-weight: 800; padding: 4px 30px 4px 12px; border-radius: 999px; flex-shrink: 0; }
-  .station-top-pill { background: #fff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 9px 12px; font-size: 11px; font-weight: 900; white-space: nowrap; box-shadow: 0 4px 16px rgba(15,23,42,.07); }
+  .station-top-select { width: 175px; min-width: 175px; max-width: 175px; min-height: 36px; height: 36px; font-size: 9px; font-weight: 500; padding: 4px 28px 4px 10px; border-radius: 999px; flex-shrink: 0; }
+  .station-top-pill { background: #fff; border: 1px solid #cbd5e1; border-radius: 999px; padding: 8px 10px; font-size: 9px; font-weight: 500; white-space: nowrap; box-shadow: 0 4px 16px rgba(15,23,42,.07); }
   .user-menu-wrap { position: relative; }
   .user-circle { width: 42px; height: 42px; border-radius: 999px; border: 0; background: #0f172a; color: #fff; font-weight: 900; cursor: pointer; display: grid; place-items: center; box-shadow: 0 6px 18px rgba(15,23,42,.18); }
   .user-dropdown { position: absolute; right: 0; top: 50px; min-width: 190px; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 16px 40px rgba(15,23,42,.16); padding: 10px; z-index: 90; display: grid; gap: 8px; }
@@ -158,8 +158,8 @@ const styles = `
     .app-subtitle { display: none; }
     .status-row { display: flex; width: auto; gap: 12px; align-items:center; flex-wrap: nowrap; }
     .status-pill { display: none; }
-    .station-top-select { width: 175px; min-width: 175px; max-width: 175px; min-height: 34px; height: 34px; font-size: 10px; padding: 4px 28px 4px 10px; border-radius: 999px; }
-    .station-top-pill { font-size: 10px; padding: 8px 10px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+    .station-top-select { width: 175px; min-width: 175px; max-width: 175px; min-height: 34px; height: 34px; font-size: 9px; font-weight:500; padding: 4px 26px 4px 10px; border-radius: 999px; }
+    .station-top-pill { font-size: 9px; font-weight:500; padding: 8px 10px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
     .header-controls { gap: 12px; }
     .logout-button { width: 100%; min-height: 38px; padding: 8px 10px; font-size: 13px; border-radius: 12px; }
     .user-circle { width: 34px; height: 34px; font-size: 12px; }
