@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Fuel Tank Reading</string>
+    <string name="title_activity_main">Fuel Tank Reading</string>
+    <string name="package_name">com.amuji.fueltankreading</string>
+    <string name="custom_url_scheme">com.amuji.fueltankreading</string>
+</resources>
