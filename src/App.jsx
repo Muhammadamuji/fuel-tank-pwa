@@ -368,6 +368,39 @@ async function saveUsersToGoogleSheetsUrl(users) {
     document.body.appendChild(script);
   });
 }
+
+async function saveReadingsToGoogleSheetsUrl(readings) {
+  const callbackName = `fuelTankSaveReadingsCallback_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const payload = encodeURIComponent(JSON.stringify(readings));
+  return new Promise((resolve, reject) => {
+    if (typeof document === "undefined") {
+      reject(new Error("Document is not available"));
+      return;
+    }
+    const script = document.createElement("script");
+    const cleanup = () => {
+      if (window[callbackName]) delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    };
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("Readings save did not respond. Check Apps Script deployment."));
+    }, 15000);
+    window[callbackName] = (data) => {
+      window.clearTimeout(timeout);
+      cleanup();
+      if (data?.success) resolve(data);
+      else reject(new Error(data?.error || "Readings save failed."));
+    };
+    script.onerror = () => {
+      window.clearTimeout(timeout);
+      cleanup();
+      reject(new Error("Readings save script could not load. Check Web App URL/access."));
+    };
+    script.src = `${GOOGLE_SHEETS_WEB_APP_URL}?action=saveReadings&readings=${payload}&callback=${encodeURIComponent(callbackName)}&ts=${Date.now()}`;
+    document.body.appendChild(script);
+  });
+}
 const HISTORY_KEY = "fuelTankReadingHistory";
 const UNLOADING_HISTORY_KEY = "fuelTankUnloadingHistory";
 const SALES_IMPORT_HISTORY_KEY = "fuelTankSalesImportHistory";
@@ -1097,8 +1130,8 @@ export default function FuelTankPWAPrototype() {
     setSavingReadings(true);
     setLastSyncError("");
     try {
-      await fetch(GOOGLE_SHEETS_WEB_APP_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(rowsToSave) });
-      setSyncStatus("Sent to Google Sheets");
+      const result = await saveReadingsToGoogleSheetsUrl(rowsToSave);
+      setSyncStatus(`Saved to Google Sheets. Saved: ${result?.saved ?? rowsToSave.length}`);
     } catch (error) {
       setLastSyncError(error?.message || "Could not send to Google Sheets");
       setSyncStatus("Saved locally only");
