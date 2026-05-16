@@ -1127,18 +1127,22 @@ export default function FuelTankPWAPrototype() {
       return normalizeReadingRow({ id: editingReadingId || makeId(), date: readingDate, station: station.name, tank: tankItem.name, product: tankItem.product, mm: mmValue, liters: tankLiters, percentage: tankPercentage, ullage: Math.max(tankCapacity - tankLiters, 0), operator: operator || loggedInUser?.username || existingReading?.operator || "Not entered" });
     }).filter(Boolean);
     if (rowsToSave.length === 0) return;
+
+    const nextHistory = editingReadingId ? [...rowsToSave, ...history.filter((row) => row.id !== editingReadingId)] : [...rowsToSave, ...history];
+    persistHistory(nextHistory);
+    setDailyReadings({});
+    setEditingReadingId(null);
+    setSyncStatus("Saved locally. Sending to Google Sheets...");
     setSavingReadings(true);
     setLastSyncError("");
+
     try {
       const result = await saveReadingsToGoogleSheetsUrl(rowsToSave);
       setSyncStatus(`Saved to Google Sheets. Saved: ${result?.saved ?? rowsToSave.length}`);
     } catch (error) {
       setLastSyncError(error?.message || "Could not send to Google Sheets");
-      setSyncStatus("Saved locally only");
+      setSyncStatus("Saved locally only. Google Sheets failed.");
     } finally {
-      persistHistory(editingReadingId ? [...rowsToSave, ...history.filter((row) => row.id !== editingReadingId)] : [...rowsToSave, ...history]);
-      setDailyReadings({});
-      setEditingReadingId(null);
       setSavingReadings(false);
     }
   };
