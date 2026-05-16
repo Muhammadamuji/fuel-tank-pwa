@@ -369,9 +369,24 @@ async function saveUsersToGoogleSheetsUrl(users) {
   });
 }
 
-async function saveReadingsToGoogleSheetsUrl(readings) {
-  const callbackName = `fuelTankSaveReadingsCallback_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  const payload = encodeURIComponent(JSON.stringify(readings));
+async function saveOneReadingToGoogleSheetsUrl(row) {
+  const callbackName = `fuelTankSaveReadingCallback_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const params = new URLSearchParams({
+    action: "saveReading",
+    callback: callbackName,
+    ts: String(Date.now()),
+    id: String(row.id || ""),
+    date: String(row.date || ""),
+    station: String(row.station || ""),
+    tank: String(row.tank || ""),
+    product: String(row.product || ""),
+    mm: String(row.mm || 0),
+    liters: String(row.liters || 0),
+    percentage: String(row.percentage || 0),
+    ullage: String(row.ullage || 0),
+    operator: String(row.operator || ""),
+  });
+
   return new Promise((resolve, reject) => {
     if (typeof document === "undefined") {
       reject(new Error("Document is not available"));
@@ -384,22 +399,32 @@ async function saveReadingsToGoogleSheetsUrl(readings) {
     };
     const timeout = window.setTimeout(() => {
       cleanup();
-      reject(new Error("Readings save did not respond. Check Apps Script deployment."));
+      reject(new Error("Reading save did not respond. Check Apps Script deployment/access."));
     }, 15000);
     window[callbackName] = (data) => {
       window.clearTimeout(timeout);
       cleanup();
       if (data?.success) resolve(data);
-      else reject(new Error(data?.error || "Readings save failed."));
+      else reject(new Error(data?.error || "Reading save failed."));
     };
     script.onerror = () => {
       window.clearTimeout(timeout);
       cleanup();
-      reject(new Error("Readings save script could not load. Check Web App URL/access."));
+      reject(new Error("Reading save script could not load. Open the Web App URL and check access is Anyone."));
     };
-    script.src = `${GOOGLE_SHEETS_WEB_APP_URL}?action=saveReadings&readings=${payload}&callback=${encodeURIComponent(callbackName)}&ts=${Date.now()}`;
+    script.src = `${GOOGLE_SHEETS_WEB_APP_URL}?${params.toString()}`;
     document.body.appendChild(script);
   });
+}
+
+async function saveReadingsToGoogleSheetsUrl(readings) {
+  const rows = Array.isArray(readings) ? readings : [readings];
+  let saved = 0;
+  for (const row of rows) {
+    await saveOneReadingToGoogleSheetsUrl(row);
+    saved += 1;
+  }
+  return { success: true, type: "readings", saved };
 }
 const HISTORY_KEY = "fuelTankReadingHistory";
 const UNLOADING_HISTORY_KEY = "fuelTankUnloadingHistory";
