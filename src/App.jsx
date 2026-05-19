@@ -426,6 +426,72 @@ async function saveReadingsToGoogleSheetsUrl(readings) {
   }
   return { success: true, type: "readings", saved };
 }
+
+async function saveOneDeliveryToGoogleSheetsUrl(row) {
+  const callbackName = `fuelTankSaveDeliveryCallback_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  const params = new URLSearchParams({
+    action: "saveDelivery",
+    callback: callbackName,
+    ts: String(Date.now()),
+    id: String(row.id || ""),
+    deliveryId: String(row.deliveryId || ""),
+    date: String(row.date || ""),
+    updatedAt: String(row.updatedAt || ""),
+    station: String(row.station || ""),
+    tank: String(row.tank || ""),
+    product: String(row.product || ""),
+    initialMm: String(row.initialMm || 0),
+    finalMm: String(row.finalMm || 0),
+    initialLiters: String(row.initialLiters || 0),
+    finalLiters: String(row.finalLiters || 0),
+    deliveredLiters: String(row.deliveredLiters || 0),
+    invoiceLiters: String(row.invoiceLiters || 0),
+    variance: String(row.variance || 0),
+    reference: String(row.reference || ""),
+    truckPlate: String(row.truckPlate || ""),
+    driverName: String(row.driverName || ""),
+    operator: String(row.operator || ""),
+  });
+
+  return new Promise((resolve, reject) => {
+    if (typeof document === "undefined") {
+      reject(new Error("Document is not available"));
+      return;
+    }
+    const script = document.createElement("script");
+    const cleanup = () => {
+      if (window[callbackName]) delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    };
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("Delivery save did not respond. Check Apps Script deployment/access."));
+    }, 15000);
+    window[callbackName] = (data) => {
+      window.clearTimeout(timeout);
+      cleanup();
+      if (data?.success) resolve(data);
+      else reject(new Error(data?.error || "Delivery save failed."));
+    };
+    script.onerror = () => {
+      window.clearTimeout(timeout);
+      cleanup();
+      reject(new Error("Delivery save script could not load. Open the Web App URL and check access is Anyone."));
+    };
+    script.src = `${GOOGLE_SHEETS_WEB_APP_URL}?${params.toString()}`;
+    document.body.appendChild(script);
+  });
+}
+
+async function saveDeliveriesToGoogleSheetsUrl(deliveries) {
+  const rows = Array.isArray(deliveries) ? deliveries : [deliveries];
+  let saved = 0;
+  for (const row of rows) {
+    await saveOneDeliveryToGoogleSheetsUrl(row);
+    saved += 1;
+  }
+  return { success: true, type: "deliveries", saved };
+}
 const HISTORY_KEY = "fuelTankReadingHistory";
 const UNLOADING_HISTORY_KEY = "fuelTankUnloadingHistory";
 const SALES_IMPORT_HISTORY_KEY = "fuelTankSalesImportHistory";
@@ -1212,7 +1278,7 @@ export default function FuelTankPWAPrototype() {
   const updateDeliveryTankReading = (tankId, field, value) => setDeliveryTankReadings((current) => ({ ...current, [tankId]: { ...(current[tankId] || {}), [field]: value } }));
   const getDeliveryLineCalculation = (tankItem, line = {}) => calculateUnloading(line.initialMm, line.finalMm, tankItem?.points || [], line.invoiceLiters || "");
 
-  const saveUnloading = () => {
+  const saveUnloading = async () => {
     if (!permissions.delivery) return;
     const now = getCurrentTimestamp();
     const rowsToSave = Object.entries(stationTanks).map(([tankId, tankItem]) => {
@@ -1226,10 +1292,16 @@ export default function FuelTankPWAPrototype() {
       return { id: editingUnloadingId && Object.keys(deliveryTankReadings).length === 1 ? editingUnloadingId : makeId(), deliveryId: currentDeliveryId, date: now, updatedAt: editingUnloadingId ? now : undefined, station: station.name, tank: tankItem.name, product: tankItem.product, initialMm: initialValue, finalMm: finalValue, initialLiters: lineCalculation.initialLiters, finalLiters: lineCalculation.finalLiters, deliveredLiters: lineCalculation.deliveredLiters, invoiceLiters: lineCalculation.invoiceLiters, variance: lineCalculation.variance, reference: unloadReference || "Not entered", truckPlate: truckPlate || "Not entered", driverName: driverName || "Not entered", operator: operator || loggedInUser?.username || "Not entered" };
     }).filter(Boolean);
     if (rowsToSave.length === 0) return;
-    if (editingUnloadingId) {
-      persistUnloadingHistory([...rowsToSave, ...unloadingHistory.filter((row) => row.id !== editingUnloadingId)]);
-    } else {
-      persistUnloadingHistory([...rowsToSave, ...unloadingHistory]);
+    const nextUnloadingHistory = editingUnloadingId ? [...rowsToSave, ...unloadingHistory.filter((row) => row.id !== editingUnloadingId)] : [...rowsToSave, ...unloadingHistory];
+    persistUnloadingHistory(nextUnloadingHistory);
+    setSyncStatus("Delivery saved locally. Sending to Google Sheets...");
+    setLastSyncError("");
+    try {
+      const result = await saveDeliveriesToGoogleSheetsUrl(rowsToSave);
+      setSyncStatus(`Delivery saved to Google Sheets. Saved: ${result?.saved ?? rowsToSave.length}`);
+    } catch (error) {
+      setLastSyncError(error?.message || "Could not send delivery to Google Sheets");
+      setSyncStatus("Delivery saved locally only. Google Sheets failed.");
     }
     resetUnloadingForm();
   };
