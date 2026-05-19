@@ -639,6 +639,36 @@ function rowsFromGoogleSheetPayload(payload) {
   return sortReadingsNewestFirst(rows);
 }
 
+function normalizeDeliveryRow(row) {
+  return {
+    id: row?.id || makeId(),
+    deliveryId: row?.deliveryId || createTruckDeliveryId(row?.reference, row?.truckPlate, row?.driverName),
+    date: row?.date || getCurrentTimestamp(),
+    updatedAt: row?.updatedAt || "",
+    station: row?.station || "",
+    tank: row?.tank || "",
+    product: row?.product || "",
+    initialMm: Number(row?.initialMm) || 0,
+    finalMm: Number(row?.finalMm) || 0,
+    initialLiters: Number(row?.initialLiters) || 0,
+    finalLiters: Number(row?.finalLiters) || 0,
+    deliveredLiters: Number(row?.deliveredLiters) || 0,
+    invoiceLiters: Number(row?.invoiceLiters) || 0,
+    variance: Number(row?.variance) || 0,
+    reference: row?.reference || "Not entered",
+    truckPlate: row?.truckPlate || "Not entered",
+    driverName: row?.driverName || "Not entered",
+    operator: row?.operator || "Not entered",
+  };
+}
+
+function deliveriesFromGoogleSheetPayload(payload) {
+  if (!Array.isArray(payload) || payload.length === 0) return [];
+  if (typeof payload[0] === "object" && !Array.isArray(payload[0])) return [...payload.map(normalizeDeliveryRow).filter((row) => row.station && row.tank)].sort((a, b) => getRowTime(b) - getRowTime(a));
+  const rows = payload.slice(1).map((row) => normalizeDeliveryRow({ id: row?.[0], deliveryId: row?.[1], date: row?.[2], updatedAt: row?.[3], station: row?.[4], tank: row?.[5], product: row?.[6], initialMm: row?.[7], finalMm: row?.[8], initialLiters: row?.[9], finalLiters: row?.[10], deliveredLiters: row?.[11], invoiceLiters: row?.[12], variance: row?.[13], reference: row?.[14], truckPlate: row?.[15], driverName: row?.[16], operator: row?.[17] })).filter((row) => row.station && row.tank);
+  return rows.sort((a, b) => getRowTime(b) - getRowTime(a));
+}
+
 function createTruckDeliveryId(reference, truckPlate, driverName) {
   const raw = `${reference || ""}-${truckPlate || ""}-${driverName || ""}`;
   let cleaned = "";
@@ -1183,7 +1213,7 @@ export default function FuelTankPWAPrototype() {
       });
       const rows = rowsFromGoogleSheetPayload(payload);
       persistHistory(rows);
-      setSyncStatus(rows.length > 0 ? "Loaded from Google Sheets" : "Google Sheets loaded, no readings");
+      setSyncStatus(rows.length > 0 ? "Loaded readings from Google Sheets" : "Google Sheets loaded, no readings");
     } catch (error) {
       setLastSyncError(error?.message || "Could not load Google Sheets readings");
       setSyncStatus("Local mode");
@@ -1192,7 +1222,65 @@ export default function FuelTankPWAPrototype() {
     }
   };
 
-  useEffect(() => { if (loggedInUser?.permissions?.refreshCloud) loadReadingsFromGoogleSheets(); }, [loggedInUser?.username]);
+  const loadDeliveriesFromGoogleSheets = async () => {
+    if (!permissions.refreshCloud) return;
+    const callbackName = `fuelTankDeliveriesCallback_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    try {
+      const payload = await new Promise((resolve, reject) => {
+        if (typeof document === "undefined") {
+          reject(new Error("Document is not available"));
+          return;
+        }
+        const script = document.createElement("script");
+        const cleanup = () => {
+          if (window[callbackName]) delete window[callbackName];
+          if (script.parentNode) script.parentNode.removeChild(script);
+        };
+        const timeout = window.setTimeout(() => {
+          cleanup();
+          reject(new Error("Google Sheets deliveries did not respond."));
+        }, 15000);
+        window[callbackName] = (data) => {
+          window.clearTimeout(timeout);
+          cleanup();
+          resolve(data);
+        };
+        script.onerror = () => {
+          window.clearTimeout(timeout);
+          cleanup();
+          reject(new Error("Google Sheets delivery script could not load."));
+        };
+        script.src = `${GOOGLE_SHEETS_WEB_APP_URL}?action=getDeliveries&callback=${encodeURIComponent(callbackName)}&ts=${Date.now()}`;
+        document.body.appendChild(script);
+      });
+      const rows = deliveriesFromGoogleSheetPayload(payload);
+      persistUnloadingHistory(rows);
+    } catch (error) {
+      setLastSyncError(error?.message || "Could not load Google Sheets deliveries");
+    }
+  };
+
+  const refreshAllCloudData = async () => {
+    await loadReadingsFromGoogleSheets();
+    await loadDeliveriesFromGoogleSheets();
+  };
+
+  useEffect(() => { if (loggedInUser?.permissions?.refreshCloud) refreshAllCloudData(); }, [loggedInUser?.username]);
+
+  useEffect(() => {
+    if (!loggedInUser?.permissions?.refreshCloud) return;
+    const interval = window.setInterval(() => {
+      refreshAllCloudData();
+    }, 45000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") refreshAllCloudData();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [loggedInUser?.username, loggedInUser?.permissions?.refreshCloud]);
 
   const selectStation = (stationId, clearReading = true) => {
     if (!permissions.changeStation || userStationId !== "all") return;
