@@ -581,29 +581,64 @@ function safeLocalStorageSet(key, value) {
 function parseSavedDate(value) {
   if (!value) return null;
   const text = String(value).trim();
+
   if (text.includes("-") && (text.includes("T") || text.includes(" "))) {
     const cleanText = text.replace("T", " ").replace("Z", "");
     const [datePart, timePart = "00:00:00"] = cleanText.split(" ");
     const datePieces = datePart.split("-");
     const timePieces = timePart.split(":");
+
     if (datePieces.length === 3 && timePieces.length >= 2) {
-      const parsedLocal = new Date(Number(datePieces[0]), Number(datePieces[1]) - 1, Number(datePieces[2]), Number(timePieces[0]), Number(timePieces[1]), Number(timePieces[2] || 0));
+      const parsedLocal = new Date(
+        Number(datePieces[0]),
+        Number(datePieces[1]) - 1,
+        Number(datePieces[2]),
+        Number(timePieces[0]),
+        Number(timePieces[1]),
+        Number(timePieces[2] || 0)
+      );
+
       if (!Number.isNaN(parsedLocal.getTime())) return parsedLocal;
     }
   }
+
   if (text.includes("/")) {
-    const parts = text.replace(",", " ").replace("  ", " ").split(" ").filter(Boolean);
+    const parts = text.replace(",", " ").replace(/\s+/g, " ").split(" ").filter(Boolean);
     const datePieces = (parts[0] || "").split("/");
     const timePieces = (parts[1] || "00:00:00").split(":");
-    if (datePieces.length === 3 && timePieces.length >= 2) {
+
+    if (datePieces.length === 3) {
+      let first = Number(datePieces[0]);
+      let second = Number(datePieces[1]);
+      const year = Number(datePieces[2]);
+
+      let month;
+      let day;
+
+      if (first > 12) {
+        day = first;
+        month = second;
+      } else if (second > 12) {
+        month = first;
+        day = second;
+      } else {
+        month = first;
+        day = second;
+      }
+
+      let hour = Number(timePieces[0] || 0);
+      const minute = Number(timePieces[1] || 0);
+      const secondTime = Number(timePieces[2] || 0);
+
       const suffix = String(parts[2] || "").toUpperCase();
-      let hour = Number(timePieces[0]);
       if (suffix === "PM" && hour < 12) hour += 12;
       if (suffix === "AM" && hour === 12) hour = 0;
-      const parsedSlash = new Date(Number(datePieces[2]), Number(datePieces[1]) - 1, Number(datePieces[0]), hour, Number(timePieces[1]), Number(timePieces[2] || 0));
+
+      const parsedSlash = new Date(year, month - 1, day, hour, minute, secondTime);
       if (!Number.isNaN(parsedSlash.getTime())) return parsedSlash;
     }
   }
+
   const parsed = new Date(text);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
