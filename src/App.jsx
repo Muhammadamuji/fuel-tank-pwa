@@ -1243,7 +1243,7 @@ export default function FuelTankPWAPrototype() {
           cleanup();
           reject(new Error("Google Sheets script could not load. Check the Web App URL and deployment access."));
         };
-        script.src = `${GOOGLE_SHEETS_WEB_APP_URL}?callback=${encodeURIComponent(callbackName)}&ts=${Date.now()}`;
+        script.src = `${GOOGLE_SHEETS_WEB_APP_URL}?action=getReadings&callback=${encodeURIComponent(callbackName)}&ts=${Date.now()}`;
         document.body.appendChild(script);
       });
       const rows = rowsFromGoogleSheetPayload(payload);
