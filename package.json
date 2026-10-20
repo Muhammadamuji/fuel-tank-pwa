@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "vitest run"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.4",
@@ -20,6 +21,7 @@
     "vite-plugin-pwa": "latest"
   },
   "devDependencies": {
+    "vitest": "^2.1.9",
     "xlsx": "^0.18.5"
   }
 }

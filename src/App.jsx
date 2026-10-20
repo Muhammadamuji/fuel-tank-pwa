@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { flushQueue, mirrorRows, signInWithPin } from "./lib/mirror";
 import {
   totalTank1Points,
   totalTank2Points,
@@ -1278,6 +1279,7 @@ export default function FuelTankPWAPrototype() {
   };
 
   const refreshAllCloudData = async () => {
+    flushQueue(window.localStorage).catch(() => {});
     await loadReadingsFromGoogleSheets();
     await loadDeliveriesFromGoogleSheets();
   };
@@ -1324,6 +1326,7 @@ export default function FuelTankPWAPrototype() {
     }).filter(Boolean);
     if (rowsToSave.length === 0) return;
 
+    mirrorRows(window.localStorage, "reading", rowsToSave, Boolean(editingReadingId)).catch(() => {});
     const nextHistory = editingReadingId ? [...rowsToSave, ...history.filter((row) => row.id !== editingReadingId)] : [...rowsToSave, ...history];
     persistHistory(nextHistory);
     setDailyReadings({});
@@ -1397,7 +1400,8 @@ export default function FuelTankPWAPrototype() {
       return { id: editingUnloadingId && Object.keys(deliveryTankReadings).length === 1 ? editingUnloadingId : makeId(), deliveryId: currentDeliveryId, date: now, updatedAt: editingUnloadingId ? now : undefined, station: station.name, tank: tankItem.name, product: tankItem.product, initialMm: initialValue, finalMm: finalValue, initialLiters: lineCalculation.initialLiters, finalLiters: lineCalculation.finalLiters, deliveredLiters: lineCalculation.deliveredLiters, invoiceLiters: lineCalculation.invoiceLiters, variance: lineCalculation.variance, reference: unloadReference || "Not entered", truckPlate: truckPlate || "Not entered", driverName: driverName || "Not entered", operator: operator || loggedInUser?.username || "Not entered" };
     }).filter(Boolean);
     if (rowsToSave.length === 0) return;
-    const nextUnloadingHistory = editingUnloadingId ? [...rowsToSave, ...unloadingHistory.filter((row) => row.id !== editingUnloadingId)] : [...rowsToSave, ...unloadingHistory];
+    mirrorRows(window.localStorage, "delivery", rowsToSave, Boolean(editingUnloadingId)).catch(() => {});
+    const nextUnloadingHistory =editingUnloadingId ? [...rowsToSave, ...unloadingHistory.filter((row) => row.id !== editingUnloadingId)] : [...rowsToSave, ...unloadingHistory];
     persistUnloadingHistory(nextUnloadingHistory);
     setSyncStatus("Delivery saved locally. Sending to Google Sheets...");
     setLastSyncError("");
@@ -1509,6 +1513,7 @@ export default function FuelTankPWAPrototype() {
     const safeUser = { username: user.username, role: user.role, stationId: user.stationId || "all", permissions: { ...getDefaultPermissions(), ...user.permissions } };
     safeLocalStorageSet(SESSION_KEY, safeUser);
     setLoggedInUser(safeUser);
+    signInWithPin(user.username, password).then(() => flushQueue(window.localStorage)).catch(() => {});
     setActivePage(getDefaultPageForUser(safeUser));
     setLoginUsername("");
     setLoginPassword("");
