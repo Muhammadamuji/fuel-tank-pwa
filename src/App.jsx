@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { flushQueue, mirrorRows, signInWithPin } from "./lib/mirror";
+import { flushQueue, mirrorRows, signInWithPin, signOutCloud } from "./lib/mirror";
 import {
   totalTank1Points,
   totalTank2Points,
@@ -1295,9 +1295,11 @@ export default function FuelTankPWAPrototype() {
       if (document.visibilityState === "visible") refreshAllCloudData();
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("online", refreshAllCloudData);
     return () => {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("online", refreshAllCloudData);
     };
   }, [loggedInUser?.username, loggedInUser?.permissions?.refreshCloud]);
 
@@ -1522,6 +1524,7 @@ export default function FuelTankPWAPrototype() {
 
   const handleLogout = () => {
     if (typeof window !== "undefined" && window.localStorage) window.localStorage.removeItem(SESSION_KEY);
+    signOutCloud().catch(() => {});
     setLoggedInUser(null);
     setUserMenuOpen(false);
     setActivePage("dashboard");

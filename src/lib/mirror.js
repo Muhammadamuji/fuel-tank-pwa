@@ -15,12 +15,16 @@ export function usernameToEmail(username) {
   return `${clean}@fueltank.local`;
 }
 
-// App timestamps are local "YYYY-MM-DD HH:MM:SS"; devices run on Mozambique time.
+const MOZAMBIQUE_OFFSET = "+02:00";
+const pad2 = (value) => String(value).padStart(2, "0");
+
+// App timestamps are "YYYY-MM-DD HH:MM:SS" wall-clock time at the station (Mozambique, UTC+2),
+// whatever timezone the phone itself is set to.
 export function localStampToIso(stamp) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2}):?(\d{2})?/.exec(String(stamp || "").trim());
+  const match = /^(\d{4})-(\d{2})-(\d{2})[ ](\d{1,2}):(\d{2}):?(\d{2})?$/.exec(String(stamp || "").trim());
   if (!match) return null;
   const [, year, month, day, hour, minute, second = "0"] = match;
-  const date = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+  const date = new Date(`${year}-${month}-${day}T${pad2(hour)}:${minute}:${pad2(second)}${MOZAMBIQUE_OFFSET}`);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
@@ -72,29 +76,44 @@ export function toDeliveryRecord(row, tankIds) {
   };
 }
 
-function readQueue(storage) {
+const QUEUE_KEY_DEAD = "fuelTankMirrorDead";
+
+function readList(storage, key) {
   try {
-    const saved = JSON.parse(storage.getItem(QUEUE_KEY) || "[]");
+    const saved = JSON.parse(storage.getItem(key) || "[]");
     return Array.isArray(saved) ? saved : [];
   } catch {
     return [];
   }
 }
 
-function writeQueue(storage, queue) {
+function writeList(storage, key, list) {
   try {
-    storage.setItem(QUEUE_KEY, JSON.stringify(queue));
+    storage.setItem(key, JSON.stringify(list));
   } catch {
     // Storage full or blocked: the Sheets copy is still the source of truth in this phase.
   }
 }
 
+function newJobId() {
+  return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 export function enqueue(storage, job) {
-  writeQueue(storage, [...readQueue(storage), job]);
+  writeList(storage, QUEUE_KEY, [...readList(storage, QUEUE_KEY), { ...job, id: job.id || newJobId() }]);
 }
 
 export function pendingCount(storage) {
-  return readQueue(storage).length;
+  return readList(storage, QUEUE_KEY).length;
+}
+
+export function deadCount(storage) {
+  return readList(storage, QUEUE_KEY_DEAD).length;
+}
+
+// Jobs the database will never accept are parked here for inspection instead of retried forever.
+function bury(storage, job, reason) {
+  writeList(storage, QUEUE_KEY_DEAD, [...readList(storage, QUEUE_KEY_DEAD), { job, reason, at: new Date().toISOString() }]);
 }
 
 async function loadTankIds(client) {
@@ -103,53 +122,79 @@ async function loadTankIds(client) {
   return Object.fromEntries(data.map((tank) => [tankKey(tank.station_id, tank.name), tank.id]));
 }
 
+const isRetryable = (status) => !status || status >= 500 || status === 401 || status === 408 || status === 429;
+
+// Returns "sent", "retry" (keep queued) or "dead" (can never succeed).
 async function sendJob(client, job, tankIds) {
   const record = job.kind === "reading" ? toReadingRecord(job.row, tankIds) : toDeliveryRecord(job.row, tankIds);
-  if (!record) return; // Row can't be mapped (unknown station/tank): drop it rather than retry forever.
+  if (!record) return { outcome: "dead", reason: "unknown station, tank or date" };
   const table = job.kind === "reading" ? "readings" : "deliveries";
-  const { error } = await client.from(table).upsert(record, { onConflict: "legacy_id", ignoreDuplicates: !job.isEdit });
-  if (error) throw error;
+  const { error, status } = await client.from(table).upsert(record, { onConflict: "legacy_id", ignoreDuplicates: !job.isEdit });
+  if (!error) return { outcome: "sent" };
+  return isRetryable(status) ? { outcome: "retry" } : { outcome: "dead", reason: `${status} ${error.code || ""} ${error.message || ""}`.trim() };
 }
 
-// Sends every queued job; jobs that fail stay in the queue for the next attempt.
-export async function flushQueue(storage, client = supabase) {
-  const queue = readQueue(storage);
-  if (!client || queue.length === 0) return { sent: 0, pending: queue.length };
+async function runFlush(storage, client) {
+  const snapshot = readList(storage, QUEUE_KEY);
+  if (!client || snapshot.length === 0) return { sent: 0, pending: snapshot.length };
   const { data: sessionData } = await client.auth.getSession();
-  if (!sessionData?.session) return { sent: 0, pending: queue.length };
+  if (!sessionData?.session) return { sent: 0, pending: snapshot.length };
 
   let tankIds;
   try {
     tankIds = await loadTankIds(client);
   } catch {
-    return { sent: 0, pending: queue.length };
+    return { sent: 0, pending: snapshot.length };
   }
+  // No visible tanks means this login has no usable profile yet: keep everything queued.
+  if (Object.keys(tankIds).length === 0) return { sent: 0, pending: snapshot.length };
 
-  const remaining = [];
+  const finished = new Set();
   let sent = 0;
-  for (const job of queue) {
+  for (const job of snapshot) {
+    let result;
     try {
-      await sendJob(client, job, tankIds);
-      sent += 1;
+      result = await sendJob(client, job, tankIds);
     } catch {
-      remaining.push(job);
+      result = { outcome: "retry" };
     }
+    if (result.outcome === "sent") sent += 1;
+    if (result.outcome === "dead") bury(storage, job, result.reason);
+    if (result.outcome !== "retry") finished.add(job.id);
   }
-  writeQueue(storage, remaining);
+  // Re-read so jobs queued while we were sending are kept.
+  const remaining = readList(storage, QUEUE_KEY).filter((job) => !finished.has(job.id));
+  writeList(storage, QUEUE_KEY, remaining);
   return { sent, pending: remaining.length };
+}
+
+let activeFlush = null;
+
+// Only one flush runs at a time; callers during a flush share its result.
+export function flushQueue(storage, client = supabase) {
+  if (!activeFlush) {
+    activeFlush = runFlush(storage, client).finally(() => { activeFlush = null; });
+  }
+  return activeFlush;
 }
 
 export async function mirrorRows(storage, kind, rows, isEdit = false) {
   rows.forEach((row) => enqueue(storage, { kind, row, isEdit }));
+  if (activeFlush) await activeFlush.catch(() => {}); // let the running flush finish, then send the new jobs
   return flushQueue(storage);
 }
 
+// Makes sure the cloud session belongs to the person logging in, never a previous worker.
 export async function signInWithPin(username, pin, client = supabase) {
   if (!client) return false;
-  const { error } = await client.auth.signInWithPassword({ email: usernameToEmail(username), password: `${pin}${PIN_SUFFIX}` });
+  const email = usernameToEmail(username);
+  const { data } = await client.auth.getSession();
+  if (data?.session?.user?.email === email) return true;
+  await client.auth.signOut({ scope: "local" });
+  const { error } = await client.auth.signInWithPassword({ email, password: `${pin}${PIN_SUFFIX}` });
   return !error;
 }
 
 export async function signOutCloud(client = supabase) {
-  if (client) await client.auth.signOut();
+  if (client) await client.auth.signOut({ scope: "local" });
 }
